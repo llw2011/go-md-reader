@@ -18,6 +18,7 @@ import (
 	"github.com/jchv/go-webview2"
 	"go-md-reader/assoc"
 	"go-md-reader/dialog"
+	"go-md-reader/updater"
 	"golang.org/x/sys/windows"
 )
 
@@ -101,6 +102,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"mode":       mode,
+			"version":    updater.CurrentVersion,
 			"defaultDir": defaultDir,
 			"extensions": assoc.GetSupportedExtensions(),
 		})
@@ -171,7 +173,7 @@ func main() {
 		_ = http.Serve(ln, mux)
 	}()
 
-	title := "Go Markdown Reader v2.0 安装向导"
+	title := fmt.Sprintf("Go Markdown Reader %s 安装向导", updater.CurrentVersion)
 	if mode == "uninstall" {
 		title = "Go Markdown Reader 卸载向导"
 	}
@@ -299,7 +301,8 @@ func performInstall(selfExe, targetDir string, exts []string, desktopLnk, startM
 
 	if regUninst {
 		sizeKB := uint32(len(payloadExe) / 1024)
-		_ = assoc.RegisterUninstallEntry(targetDir, targetExe, uninstExe, "2.0.0", sizeKB)
+		ver := strings.TrimPrefix(updater.CurrentVersion, "v")
+		_ = assoc.RegisterUninstallEntry(targetDir, targetExe, uninstExe, ver, sizeKB)
 		logs = append(logs, "已注册独立卸载程序 (Uninstall.exe)")
 	}
 
@@ -313,7 +316,14 @@ func performUninstall(installDir string) ([]string, error) {
 
 	var logs []string
 
-	// 1. Remove all registry file associations & restore backups
+	// 1. Restore system Notepad if replaced
+	if assoc.GetNotepadStatus().Replaced {
+		if err := assoc.RestoreNotepad(); err == nil {
+			logs = append(logs, "已恢复系统默认记事本 (Notepad)")
+		}
+	}
+
+	// 2. Remove all registry file associations & restore backups
 	assoc.RemoveAllAssociations()
 	logs = append(logs, "已清除所有文件关联并还原系统原有默认打开方式")
 

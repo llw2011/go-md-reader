@@ -105,6 +105,10 @@ func TestCheckAndDownloadWithMockGitHub(t *testing.T) {
 	apiBaseURL = srv.URL
 	defer func() { apiBaseURL = origBase }()
 
+	origVer := CurrentVersion
+	CurrentVersion = "v2.0.0"
+	defer func() { CurrentVersion = origVer }()
+
 	mgr := NewManager(filepath.Join(t.TempDir(), "ota.json"))
 	if _, err := mgr.SaveConfig("alice/go-md-reader", "secret-tok", false, false); err != nil {
 		t.Fatal(err)

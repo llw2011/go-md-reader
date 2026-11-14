@@ -41,3 +41,33 @@ func TestParsePreservesMediaSubdirSlashesAndTOC(t *testing.T) {
 		t.Fatalf("expected encoded filename with preserved slash in image src, got HTML:\n%s", res.HTML)
 	}
 }
+
+func TestParseYAMLFrontmatterAndFootnote(t *testing.T) {
+	p := NewMarkdownParser()
+	md := "---\ntitle: \"Release Notes\"\nauthor: <script>alert(1)</script>\ndate: 2026-11-14\n---\n\n# Heading\n\nBody text[^1].\n\n[^1]: Footnote body\n"
+	res, err := p.Parse([]byte(md))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if !strings.Contains(res.HTML, `doc-frontmatter`) || !strings.Contains(res.HTML, `Release Notes`) {
+		t.Fatalf("expected frontmatter metadata block, got HTML:\n%s", res.HTML)
+	}
+	if strings.Contains(res.HTML, `<script>alert(1)</script>`) {
+		t.Fatalf("expected HTML escaping inside frontmatter, got XSS HTML:\n%s", res.HTML)
+	}
+	if !strings.Contains(res.HTML, `footnotes`) || !strings.Contains(res.HTML, `Footnote body`) {
+		t.Fatalf("expected GFM footnote rendering, got HTML:\n%s", res.HTML)
+	}
+}
+
+func TestParseThematicBreakNotTreatedAsFrontmatter(t *testing.T) {
+	p := NewMarkdownParser()
+	md := "# Intro\n\n---\n\nParagraph\n"
+	res, err := p.Parse([]byte(md))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if strings.Contains(res.HTML, `doc-frontmatter`) {
+		t.Fatalf("unexpected frontmatter block for horizontal rule")
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/jchv/go-webview2"
+	"go-md-reader/assoc"
 	"go-md-reader/dialog"
 	"go-md-reader/server"
 	"go-md-reader/tray"
@@ -18,10 +19,29 @@ import (
 var assetsFS embed.FS
 
 func main() {
-	var initialFile string
 	if len(os.Args) > 1 {
-		initialFile = os.Args[1]
+		switch os.Args[1] {
+		case "--apply-notepad":
+			targetExe := ""
+			if len(os.Args) > 2 {
+				targetExe = os.Args[2]
+			}
+			if targetExe == "" {
+				targetExe, _ = os.Executable()
+			}
+			if err := assoc.ApplyNotepadIFEO(targetExe); err != nil {
+				os.Exit(1)
+			}
+			return
+		case "--restore-notepad":
+			if err := assoc.RestoreNotepadIFEO(); err != nil {
+				os.Exit(1)
+			}
+			return
+		}
 	}
+
+	_, initialFile := assoc.NormalizeNotepadArgs(os.Args)
 
 	// Start internal server
 	srv, err := server.New(assetsFS, initialFile)
@@ -49,8 +69,8 @@ func main() {
 		DataPath:  dataPath,
 		WindowOptions: webview2.WindowOptions{
 			Title:  "Go Markdown Reader",
-			Width:  1120,
-			Height: 760,
+			Width:  1280,
+			Height: 820,
 			IconId: 1,
 			Center: true,
 		},

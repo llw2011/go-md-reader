@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bytes"
+	stdhtml "html"
 	"net/url"
 	"strings"
 
@@ -40,6 +41,7 @@ func NewMarkdownParser() *MarkdownParser {
 	md := goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
+			extension.Footnote,
 			highlighting.NewHighlighting(
 				highlighting.WithStyle("github"),
 			),
@@ -69,7 +71,8 @@ func extractNodeText(n ast.Node, source []byte) string {
 
 // Parse processes raw markdown and returns HTML + TOC + word count
 func (p *MarkdownParser) Parse(source []byte) (*ParseResult, error) {
-	reader := text.NewReader(source)
+	frontmatterHTML, body := extractFrontmatter(source)
+	reader := text.NewReader(body)
 	doc := p.md.Parser().Parse(reader)
 
 	var toc []TOCItem
@@ -90,7 +93,7 @@ func (p *MarkdownParser) Parse(source []byte) (*ParseResult, error) {
 					id = string(b)
 				}
 			}
-			titleText := strings.TrimSpace(extractNodeText(h, source))
+			titleText := strings.TrimSpace(extractNodeText(h, body))
 			if titleText != "" {
 				toc = append(toc, TOCItem{
 					Level: h.Level,
@@ -108,7 +111,10 @@ func (p *MarkdownParser) Parse(source []byte) (*ParseResult, error) {
 	})
 
 	var htmlBuf bytes.Buffer
-	if err := p.md.Renderer().Render(&htmlBuf, source, doc); err != nil {
+	if frontmatterHTML != "" {
+		htmlBuf.WriteString(frontmatterHTML)
+	}
+	if err := p.md.Renderer().Render(&htmlBuf, body, doc); err != nil {
 		return nil, err
 	}
 
@@ -119,6 +125,68 @@ func (p *MarkdownParser) Parse(source []byte) (*ParseResult, error) {
 		TOC:       toc,
 		WordCount: runeCount,
 	}, nil
+}
+
+type fmEntry struct {
+	Key   string
+	Value string
+}
+
+// extractFrontmatter parses a leading YAML frontmatter block into a safe HTML summary card.
+func extractFrontmatter(source []byte) (string, []byte) {
+	trimmed := bytes.TrimPrefix(source, []byte("\xEF\xBB\xBF"))
+	normalized := strings.ReplaceAll(string(trimmed), "\r\n", "\n")
+	if !strings.HasPrefix(normalized, "---\n") {
+		return "", source
+	}
+
+	rest := normalized[4:]
+	endIdx := strings.Index(rest, "\n---\n")
+	endLen := 5
+	if endIdx < 0 {
+		if strings.HasSuffix(rest, "\n---") {
+			endIdx = len(rest) - 4
+			endLen = 4
+		} else {
+			return "", source
+		}
+	}
+
+	block := rest[:endIdx]
+	lines := strings.Split(block, "\n")
+	var entries []fmEntry
+	for _, line := range lines {
+		t := strings.TrimSpace(line)
+		if t == "" || strings.HasPrefix(t, "#") {
+			continue
+		}
+		colonIdx := strings.IndexByte(t, ':')
+		if colonIdx <= 0 {
+			continue
+		}
+		key := strings.TrimSpace(t[:colonIdx])
+		val := strings.TrimSpace(t[colonIdx+1:])
+		val = strings.Trim(val, `"'`)
+		if key != "" {
+			entries = append(entries, fmEntry{Key: key, Value: val})
+		}
+	}
+
+	if len(entries) == 0 {
+		return "", source
+	}
+
+	var sb strings.Builder
+	sb.WriteString(`<details class="doc-frontmatter" open><summary>📋 文档属性 (Frontmatter)</summary><div class="frontmatter-grid">`)
+	for _, e := range entries {
+		sb.WriteString(`<div class="fm-item"><span class="fm-key">`)
+		sb.WriteString(stdhtml.EscapeString(e.Key))
+		sb.WriteString(`</span><span class="fm-val">`)
+		sb.WriteString(stdhtml.EscapeString(e.Value))
+		sb.WriteString(`</span></div>`)
+	}
+	sb.WriteString(`</div></details>`)
+	return sb.String(), []byte(rest[endIdx+endLen:])
 }
 
 // rewriteLocalMediaURL converts relative local image paths into properly segment-escaped /media/ URLs.

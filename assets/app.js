@@ -33,6 +33,7 @@ const THEMES = [
 
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
+  initReadingPrefs();
   initDragDrop();
   initShortcuts();
   initScrollProgress();
@@ -209,7 +210,14 @@ async function loadFile(preserveScroll = false) {
     }
 
     if (scrollContainer) {
-      scrollContainer.scrollTop = preserveScroll ? lastScrollPos : 0;
+      if (preserveScroll) {
+        scrollContainer.scrollTop = lastScrollPos;
+      } else if (data.filepath && !data.isMemory) {
+        const savedScroll = parseInt(localStorage.getItem("go-md-scroll:" + data.filepath) || "0", 10);
+        scrollContainer.scrollTop = isNaN(savedScroll) ? 0 : savedScroll;
+      } else {
+        scrollContainer.scrollTop = 0;
+      }
     }
 
   } catch (err) {
@@ -591,6 +599,7 @@ function initLightboxWheel() {
 }
 
 // Reading progress bar and active TOC tracking on scroll
+let scrollSaveTimer = null;
 function initScrollProgress() {
   const container = document.getElementById("content-area");
   const bar = document.getElementById("progress-bar");
@@ -616,6 +625,16 @@ function initScrollProgress() {
     const backToTopBtn = document.getElementById("back-to-top");
     if (backToTopBtn) {
       backToTopBtn.style.display = scrollTop > 300 ? "flex" : "none";
+    }
+
+    if (currentDocData && currentDocData.filepath && !currentDocData.isMemory) {
+      const key = "go-md-scroll:" + currentDocData.filepath;
+      clearTimeout(scrollSaveTimer);
+      scrollSaveTimer = setTimeout(() => {
+        try {
+          localStorage.setItem(key, String(Math.round(container.scrollTop)));
+        } catch (e) {}
+      }, 200);
     }
   });
 }
@@ -751,6 +770,7 @@ function initDragDrop() {
 
     const files = e.dataTransfer.files;
     if (files.length === 0) return;
+    if (!confirmDiscardEditorChanges()) return;
 
     const file = files[0];
     const filePath = file.path || "";
@@ -1045,8 +1065,14 @@ function renderRecentMenu() {
   } catch (e) {}
 }
 
+function confirmDiscardEditorChanges() {
+  if (!isEditorDirty) return true;
+  return window.confirm("当前源码编辑器有未保存的修改，确认放弃修改并切换文档吗？");
+}
+
 async function openRecentPath(path) {
   closeAllDropdowns();
+  if (!confirmDiscardEditorChanges()) return;
   try {
     const res = await apiFetch("/api/open-path", {
       method: "POST",
@@ -1064,6 +1090,7 @@ async function openRecentPath(path) {
 }
 
 async function openFileDialog() {
+  if (!confirmDiscardEditorChanges()) return;
   try {
     const res = await apiFetch("/api/open-dialog", { method: "POST" });
     const data = await res.json();
@@ -1101,8 +1128,53 @@ function closeStatsModal(e) {
   if (modal) modal.classList.remove("show");
 }
 
-// File Associations Settings Modal
+// File Associations & Notepad Replacement Settings Modal
 let currentAssocCatalog = [];
+let currentNotepadReplaced = false;
+
+function renderNotepadStatus(st) {
+  const txtEl = document.getElementById("notepad-status-text");
+  const btn = document.getElementById("btn-notepad-toggle");
+  currentNotepadReplaced = !!(st && st.replaced);
+  if (!txtEl || !btn) return;
+
+  if (currentNotepadReplaced) {
+    const scope = st.systemWide ? "系统级 + 当前用户已接管" : "当前用户已接管";
+    txtEl.textContent = `✓ 已替换 (${scope}) — 可随时一键恢复原生记事本`;
+    txtEl.style.color = "#10b981";
+    btn.textContent = "🔄 恢复系统记事本";
+    btn.className = "btn";
+  } else {
+    txtEl.textContent = "未替换（当前使用 Windows 原生记事本）";
+    txtEl.style.color = "var(--text-muted)";
+    btn.textContent = "📝 替换记事本";
+    btn.className = "btn btn-primary";
+  }
+}
+
+async function toggleNotepadReplacement() {
+  const btn = document.getElementById("btn-notepad-toggle");
+  const wantReplace = !currentNotepadReplaced;
+  if (btn) btn.disabled = true;
+  try {
+    const res = await apiFetch("/api/assoc/notepad", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ replace: wantReplace })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showToast("❌ " + (data.error || "操作系统记事本设置失败"));
+      return;
+    }
+    renderNotepadStatus(data.status);
+    showToast(wantReplace ? "✓ 已将系统记事本替换为 Go Markdown Reader" : "✓ 已恢复 Windows 系统默认记事本");
+  } catch (err) {
+    showToast("❌ 操作记事本设置异常: " + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
 
 async function showAssocModal() {
   const modal = document.getElementById("assoc-modal");
@@ -1111,9 +1183,10 @@ async function showAssocModal() {
   if (!modal || !container) return;
 
   try {
-    const [res, trayRes] = await Promise.all([
+    const [res, trayRes, notepadRes] = await Promise.all([
       apiFetch("/api/assoc"),
-      apiFetch("/api/tray/prefs")
+      apiFetch("/api/tray/prefs"),
+      apiFetch("/api/assoc/notepad")
     ]);
     const data = await res.json();
     currentAssocCatalog = data.extensions || [];
@@ -1123,6 +1196,11 @@ async function showAssocModal() {
     if (minTrayCb && trayRes.ok) {
       const trayData = await trayRes.json();
       minTrayCb.checked = !!trayData.minimizeToTray;
+    }
+
+    if (notepadRes.ok) {
+      const npData = await notepadRes.json();
+      renderNotepadStatus(npData.status);
     }
 
     container.innerHTML = currentAssocCatalog.map(item => `
@@ -1211,7 +1289,7 @@ async function showOTAModal() {
 }
 
 function applyOTAConfigToUI(cfg) {
-  document.getElementById("ota-current-ver").textContent = cfg.currentVersion || "v2.0.0";
+  document.getElementById("ota-current-ver").textContent = cfg.currentVersion || "v2.1.0";
   document.getElementById("ota-repo").value = cfg.repo || "";
   document.getElementById("ota-prerelease").checked = !!cfg.includePrerelease;
   const statusEl = document.getElementById("ota-token-status");
@@ -1375,9 +1453,25 @@ async function applyOTAUpdate() {
 }
 
 // Sidebar, Wide Mode, Theme & Font Size Controls
+function initReadingPrefs() {
+  const savedFont = parseInt(localStorage.getItem("go-md-fontsize") || "16", 10);
+  if (!isNaN(savedFont) && savedFont >= 12 && savedFont <= 26) {
+    currentFontSize = savedFont;
+    document.documentElement.style.setProperty("--content-font-size", `${currentFontSize}px`);
+  }
+  const sidebarHidden = localStorage.getItem("go-md-sidebar") === "hidden";
+  const sidebar = document.getElementById("sidebar");
+  if (sidebar && sidebarHidden) {
+    sidebar.classList.add("hidden");
+  }
+}
+
 function toggleSidebar() {
   const sidebar = document.getElementById("sidebar");
-  sidebar.classList.toggle("hidden");
+  const isHidden = sidebar.classList.toggle("hidden");
+  try {
+    localStorage.setItem("go-md-sidebar", isHidden ? "hidden" : "open");
+  } catch (e) {}
 }
 
 function applyWideMode(isWide, isAuto = false) {
@@ -1418,6 +1512,9 @@ function adjustFontSize(delta) {
   if (delta === 0) currentFontSize = 16;
   else currentFontSize = Math.min(26, Math.max(12, currentFontSize + delta));
   document.documentElement.style.setProperty("--content-font-size", `${currentFontSize}px`);
+  try {
+    localStorage.setItem("go-md-fontsize", String(currentFontSize));
+  } catch (e) {}
 }
 
 // Live file watcher via SSE

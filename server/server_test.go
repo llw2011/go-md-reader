@@ -185,3 +185,34 @@ func TestTrayPrefsAndOTAConfigEndpoints(t *testing.T) {
 		t.Fatalf("expected minimizeToTray updated to false, code=%d minFlag=%v", recPost.Code, minFlag)
 	}
 }
+
+func TestAssocNotepadEndpoint(t *testing.T) {
+	srv := newTestServer(t, "")
+
+	mux := srv.buildMux()
+
+	reqNoAuth := httptest.NewRequest(http.MethodGet, "/api/assoc/notepad", nil)
+	recNoAuth := httptest.NewRecorder()
+	mux.ServeHTTP(recNoAuth, reqNoAuth)
+	if recNoAuth.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unauthenticated /api/assoc/notepad, got %d", recNoAuth.Code)
+	}
+
+	reqGet := httptest.NewRequest(http.MethodGet, "/api/assoc/notepad", nil)
+	reqGet.Header.Set("X-Auth-Token", srv.Token())
+	recGet := httptest.NewRecorder()
+	mux.ServeHTTP(recGet, reqGet)
+	if recGet.Code != http.StatusOK {
+		t.Fatalf("expected 200 for authenticated GET /api/assoc/notepad, got %d", recGet.Code)
+	}
+
+	var payload struct {
+		OK     bool `json:"ok"`
+		Status struct {
+			Replaced bool `json:"replaced"`
+		} `json:"status"`
+	}
+	if err := json.NewDecoder(recGet.Body).Decode(&payload); err != nil || !payload.OK {
+		t.Fatalf("unexpected /api/assoc/notepad payload: ok=%v err=%v", payload.OK, err)
+	}
+}

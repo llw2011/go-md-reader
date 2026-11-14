@@ -138,6 +138,7 @@ func (s *Server) buildMux() *http.ServeMux {
 	mux.HandleFunc("/api/file", s.requireAuth(s.handleGetFile))
 	mux.HandleFunc("/api/siblings", s.requireAuth(s.handleGetSiblings))
 	mux.HandleFunc("/api/assoc", s.requireAuth(s.handleAssoc))
+	mux.HandleFunc("/api/assoc/notepad", s.requireAuth(s.handleAssocNotepad))
 	mux.HandleFunc("/api/preview", s.requireAuth(s.handlePreview))
 	mux.HandleFunc("/api/save", s.requireAuth(s.handleSave))
 	mux.HandleFunc("/api/save-as", s.requireAuth(s.handleSaveAs))
@@ -431,6 +432,48 @@ func (s *Server) handleAssoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+		return
+	}
+
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
+// handleAssocNotepad inspects, activates, or restores Windows Notepad replacement
+func (s *Server) handleAssocNotepad(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	if r.Method == http.MethodGet {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":     true,
+			"status": assoc.GetNotepadStatus(),
+		})
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			Replace bool `json:"replace"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, "无效的请求体")
+			return
+		}
+		if req.Replace {
+			exePath, _ := os.Executable()
+			if err := assoc.ReplaceNotepad(exePath); err != nil {
+				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		} else {
+			if err := assoc.RestoreNotepad(); err != nil {
+				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":     true,
+			"status": assoc.GetNotepadStatus(),
+		})
 		return
 	}
 

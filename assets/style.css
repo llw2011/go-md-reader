@@ -157,6 +157,16 @@ body.wide-mode {
   gap: 6px;
 }
 
+.toolbar-left {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.toolbar-right {
+  flex-shrink: 0;
+}
+
 .toolbar-title {
   font-weight: 600;
   color: var(--text-main);
@@ -1120,4 +1130,59 @@ body.wide-mode {
     color: #1e293b !important;
     text-decoration: underline !important;
   }
+}
+
+/* Frontmatter Property Card & Footnotes */
+.doc-frontmatter {
+  margin-bottom: 20px;
+  padding: 10px 14px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.doc-frontmatter summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.frontmatter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 14px;
+  margin-top: 10px;
+}
+
+.fm-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fm-key {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.fm-val {
+  color: var(--text-main);
+  word-break: break-word;
+}
+
+.footnotes {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+.footnotes ol {
+  padding-left: 20px;
 }

@@ -253,7 +253,7 @@
         <div class="banner-sub">纯净本地运行 · 零外网请求 · 零后台进程 · 格式关联完全自主</div>
       </div>
     </div>
-    <div class="badge">v2.0 正式版</div>
+    <div class="badge" id="version-badge">v2.1.0 正式版</div>
   </header>
 
   <!-- INSTALL CONFIG VIEW -->
@@ -363,6 +363,9 @@
 
       document.getElementById("install-dir").value = setupInfo.defaultDir || "";
       document.getElementById("uninst-dir-label").textContent = setupInfo.defaultDir || "";
+      if (setupInfo.version) {
+        document.getElementById("version-badge").textContent = setupInfo.version + " 正式版";
+      }
 
       if (setupInfo.mode === "uninstall") {
         document.getElementById("wizard-title").textContent = "Go Markdown Reader 卸载向导";

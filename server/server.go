@@ -159,6 +159,7 @@ func (s *Server) buildMux() *http.ServeMux {
 	mux.HandleFunc("/api/assoc", s.requireAuth(s.handleAssoc))
 	mux.HandleFunc("/api/assoc/notepad", s.requireAuth(s.handleAssocNotepad))
 	mux.HandleFunc("/api/preview", s.requireAuth(s.handlePreview))
+	mux.HandleFunc("/api/format", s.requireAuth(s.handleFormat))
 	mux.HandleFunc("/api/save", s.requireAuth(s.handleSave))
 	mux.HandleFunc("/api/save-as", s.requireAuth(s.handleSaveAs))
 	mux.HandleFunc("/api/save-html", s.requireAuth(s.handleSaveHTML))
@@ -563,6 +564,39 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"html":      res.HTML,
+		"toc":       res.TOC,
+		"wordCount": res.WordCount,
+	})
+}
+
+// handleFormat auto-formats Markdown content and returns formatted text plus refreshed preview data.
+func (s *Server) handleFormat(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024*1024)).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "无效的排版请求内容")
+		return
+	}
+
+	formatted := parser.FormatMarkdown(req.Content)
+	res, err := s.parser.Parse([]byte(formatted))
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok":        true,
+		"content":   formatted,
+		"changed":   formatted != req.Content,
 		"html":      res.HTML,
 		"toc":       res.TOC,
 		"wordCount": res.WordCount,

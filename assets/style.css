@@ -420,7 +420,10 @@ body.wide-mode {
 .toolbar-left {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
+}
+
+.toolbar-group {
+  flex-shrink: 0;
 }
 
 .toolbar-right {
@@ -439,17 +442,18 @@ body.wide-mode {
 .toolbar-title {
   font-weight: 600;
   color: var(--text-main);
+  flex: 0 1 auto;
+  min-width: 0;
   max-width: 240px;
   margin-left: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: block;
 }
 
 .toolbar-meta {
+  flex-shrink: 0;
   color: var(--text-muted);
   font: inherit;
   font-size: 11.5px;
@@ -653,11 +657,13 @@ body.wide-mode {
   margin-top: 6px;
   min-width: 256px;
   max-width: 400px;
+  max-height: min(65vh, 420px);
+  overflow-y: auto;
   background: var(--bg-color);
   border: 1px solid var(--border-color);
   border-radius: 14px;
   box-shadow: var(--card-shadow);
-  z-index: 100;
+  z-index: 120;
   padding: 6px;
   list-style: none;
   transform-origin: top left;
@@ -970,13 +976,16 @@ body.wide-mode {
   background: var(--bg-toolbar);
   border-bottom: 1px solid var(--border-color);
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 6px;
   font-size: 12px;
 }
 
 .editor-tools {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
 }
 

@@ -237,6 +237,51 @@ function initDelegatedLists() {
     });
   }
 
+  document.querySelectorAll('[aria-haspopup="menu"]').forEach(trigger => {
+    trigger.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const dropdown = trigger.closest(".dropdown");
+        const menu = dropdown && dropdown.querySelector(".dropdown-menu");
+        if (!menu) return;
+        if (!menu.classList.contains("show")) {
+          toggleDropdown(menu.id, e);
+        }
+        const first = menu.querySelector(".dropdown-item");
+        if (first) first.focus();
+      }
+    });
+  });
+
+  document.querySelectorAll(".dropdown-menu").forEach(menu => {
+    menu.addEventListener("keydown", (e) => {
+      const items = Array.from(menu.querySelectorAll(".dropdown-item"));
+      if (items.length === 0) return;
+      const idx = items.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        items[(idx + 1) % items.length].focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        items[(idx - 1 + items.length) % items.length].focus();
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        items[0].focus();
+      } else if (e.key === "End") {
+        e.preventDefault();
+        items[items.length - 1].focus();
+      } else if ((e.key === "Enter" || e.key === " ") && idx !== -1) {
+        e.preventDefault();
+        items[idx].click();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        closeAllDropdowns();
+        const trigger = menu.closest(".dropdown") && menu.closest(".dropdown").querySelector('[aria-haspopup="menu"]');
+        if (trigger) trigger.focus();
+      }
+    });
+  });
+
   const tocListEl = document.getElementById("toc-list");
   if (tocListEl) {
     tocListEl.addEventListener("click", (e) => {
@@ -621,6 +666,80 @@ function insertSnippet(prefix, suffix) {
   textarea.setRangeText(replacement, start, end, "select");
   textarea.focus();
   handleEditorInput();
+}
+
+async function autoFormatDocument() {
+  const textarea = document.getElementById("editor-textarea");
+  const rawSource = (isEditorOpen && textarea)
+    ? textarea.value
+    : ((currentDocData && currentDocData.rawContent) || (textarea && textarea.value) || "");
+
+  if (!rawSource.trim()) {
+    showToast("⚠️ 当前没有可排版的文档内容");
+    return;
+  }
+
+  const fmtBtn = document.getElementById("format-btn");
+  if (fmtBtn) fmtBtn.disabled = true;
+
+  try {
+    const res = await apiFetch("/api/format", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: rawSource })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showToast("❌ " + (data.error || "自动排版失败"));
+      return;
+    }
+
+    if (!data.changed) {
+      showToast("✓ 当前文档排版已很规整，无需调整");
+      return;
+    }
+
+    if (!isEditorOpen) {
+      toggleEditor();
+    }
+
+    if (textarea) {
+      textarea.focus();
+      textarea.setSelectionRange(0, textarea.value.length);
+      let appliedViaExec = false;
+      try {
+        appliedViaExec = document.execCommand("insertText", false, data.content);
+      } catch (e) {}
+      if (!appliedViaExec || textarea.value !== data.content) {
+        textarea.value = data.content;
+      }
+      textarea.setSelectionRange(0, 0);
+      textarea.scrollTop = 0;
+    }
+
+    clearTimeout(editorDebounceTimer);
+    isEditorDirty = true;
+    if (!currentDocData) {
+      currentDocData = { hasFile: true, filename: "未命名草稿.md", filepath: "(本地草稿)" };
+    }
+    currentDocData.rawContent = data.content;
+    currentDocData.html = data.html;
+    currentDocData.wordCount = data.wordCount;
+    renderDocumentHTML(data.html, data.toc);
+
+    const words = data.wordCount || 0;
+    const estMinutes = Math.max(1, Math.round(words / 350));
+    const metaEl = document.getElementById("doc-meta");
+    if (metaEl) {
+      metaEl.textContent = `✨ 已自动排版 · ${words.toLocaleString()} 字 · 约 ${estMinutes} 分钟`;
+    }
+
+    showToast("✓ 已完成自动排版（Ctrl+Z 可撤销，Ctrl+S 保存）");
+  } catch (err) {
+    showToast("❌ 自动排版异常: " + err.message);
+  } finally {
+    if (fmtBtn) fmtBtn.disabled = false;
+  }
 }
 
 async function saveCurrentContent() {
@@ -1205,14 +1324,33 @@ function updateSearchMatchDisplay() {
 
 // Dropdown & Recent Files Menu
 function toggleDropdown(menuId, e) {
-  e.stopPropagation();
+  if (e && e.stopPropagation) e.stopPropagation();
   const target = document.getElementById(menuId);
-  const trigger = e.currentTarget || (e.target && e.target.closest("button"));
+  if (!target) return;
+  const trigger = (e && (e.currentTarget || (e.target && e.target.closest("button")))) ||
+    (target.closest(".dropdown") && target.closest(".dropdown").querySelector('[aria-haspopup="menu"]'));
   const isShown = target.classList.contains("show");
   closeAllDropdowns();
   if (!isShown) {
+    if (menuId === "recent-menu") {
+      renderRecentMenu();
+    }
+    target.style.left = "";
+    target.style.right = "";
     target.classList.add("show");
+    const rect = target.getBoundingClientRect();
+    if (rect.right > window.innerWidth - 8) {
+      target.style.left = "auto";
+      target.style.right = "0";
+    } else if (rect.left < 8) {
+      target.style.left = "0";
+      target.style.right = "auto";
+    }
     if (trigger) trigger.setAttribute("aria-expanded", "true");
+    if (e && e.type === "click" && e.detail === 0) {
+      const firstItem = target.querySelector(".dropdown-item");
+      if (firstItem) firstItem.focus();
+    }
   }
 }
 
@@ -1240,7 +1378,7 @@ function renderRecentMenu() {
     return;
   }
   menu.innerHTML = recent.map(item => `
-    <li class="dropdown-item" data-path="${escapeHtml(item.path)}">
+    <li class="dropdown-item" role="menuitem" tabindex="-1" data-path="${escapeHtml(item.path)}">
       <span class="dropdown-item-name">${escapeHtml(item.name)}</span>
       <span class="dropdown-item-path" title="${escapeHtml(item.path)}">${escapeHtml(item.path)}</span>
     </li>
@@ -1451,15 +1589,11 @@ async function saveAssocSettings() {
   }
 }
 
-// GitHub OTA Update Management
-let clearTokenFlag = false;
-
+// Online Update Management
 async function showOTAModal() {
   const modal = document.getElementById("ota-modal");
   if (!modal) return;
 
-  clearTokenFlag = false;
-  document.getElementById("ota-token").value = "";
   try {
     const res = await apiFetch("/api/ota/config");
     if (res.ok) {
@@ -1471,18 +1605,10 @@ async function showOTAModal() {
 }
 
 function applyOTAConfigToUI(cfg) {
-  document.getElementById("ota-current-ver").textContent = cfg.currentVersion || "v2.2.1";
-  document.getElementById("ota-repo").value = cfg.repo || "";
-  document.getElementById("ota-prerelease").checked = !!cfg.includePrerelease;
-  const statusEl = document.getElementById("ota-token-status");
-  const clearBtn = document.getElementById("ota-clear-token-btn");
-  if (cfg.hasToken) {
-    statusEl.textContent = `已在本机保存 GitHub Token (${cfg.tokenPreview})`;
-    clearBtn.style.display = "inline-flex";
-  } else {
-    statusEl.textContent = "未配置 Token（将使用匿名公开仓库模式）";
-    clearBtn.style.display = "none";
-  }
+  const verEl = document.getElementById("ota-current-ver");
+  if (verEl) verEl.textContent = (cfg && cfg.currentVersion) || "v2.2.1";
+  const preEl = document.getElementById("ota-prerelease");
+  if (preEl) preEl.checked = !!(cfg && cfg.includePrerelease);
 }
 
 function closeOTAModal(e) {
@@ -1491,44 +1617,35 @@ function closeOTAModal(e) {
   if (modal) modal.classList.remove("show");
 }
 
-function clearSavedOTAToken() {
-  clearTokenFlag = true;
-  document.getElementById("ota-token").value = "";
-  document.getElementById("ota-token-status").textContent = "已标记清除 Token（点击保存或检查后生效）";
-  document.getElementById("ota-clear-token-btn").style.display = "none";
-}
-
-async function saveOTASettings(silentToast = false) {
-  const repo = document.getElementById("ota-repo").value.trim();
-  const token = document.getElementById("ota-token").value.trim();
-  const includePrerelease = document.getElementById("ota-prerelease").checked;
-
-  const res = await apiFetch("/api/ota/config", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      repo,
-      token,
-      clearToken: clearTokenFlag,
-      includePrerelease
-    })
-  });
-  const data = await res.json();
-  if (!res.ok || !data.ok) {
-    showToast("❌ " + (data.error || "保存 OTA 设置失败"));
+async function saveOTAPrerelease() {
+  const preEl = document.getElementById("ota-prerelease");
+  const includePrerelease = !!(preEl && preEl.checked);
+  try {
+    const res = await apiFetch("/api/ota/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        repo: "",
+        token: "",
+        clearToken: false,
+        includePrerelease
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showToast("❌ " + (data.error || "保存更新偏好失败"));
+      return false;
+    }
+    applyOTAConfigToUI(data.config);
+    return true;
+  } catch (err) {
+    showToast("❌ 保存更新偏好失败: " + err.message);
     return false;
   }
-  clearTokenFlag = false;
-  document.getElementById("ota-token").value = "";
-  applyOTAConfigToUI(data.config);
-  if (!silentToast) {
-    showToast("✓ GitHub OTA 设置已保存至本机");
-  }
-  return true;
 }
 
 async function checkOTAUpdate() {
-  const saved = await saveOTASettings(true);
+  const saved = await saveOTAPrerelease();
   if (!saved) return;
 
   const btn = document.getElementById("btn-ota-check");
@@ -1540,7 +1657,7 @@ async function checkOTAUpdate() {
   const applyBtn = document.getElementById("btn-ota-apply");
 
   btn.disabled = true;
-  btn.textContent = "⏳ 正在查询 GitHub...";
+  btn.textContent = "⏳ 正在检查最新版本...";
   dlBtn.style.display = "none";
   applyBtn.style.display = "none";
 
@@ -1772,6 +1889,9 @@ function initShortcuts() {
     } else if (e.ctrlKey && e.key.toLowerCase() === "s") {
       e.preventDefault();
       saveCurrentContent();
+    } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "f") {
+      e.preventDefault();
+      autoFormatDocument();
     } else if (e.ctrlKey && e.key.toLowerCase() === "f") {
       e.preventDefault();
       toggleSearch();

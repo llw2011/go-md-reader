@@ -281,3 +281,40 @@ func TestActivateEndpoint(t *testing.T) {
 		t.Fatal("expected open-doc SSE event")
 	}
 }
+
+func TestFormatEndpoint(t *testing.T) {
+	srv := newTestServer(t, "")
+	mux := srv.buildMux()
+
+	reqNoAuth := httptest.NewRequest(http.MethodPost, "/api/format", bytes.NewBufferString(`{"content":"#标题"}`))
+	recNoAuth := httptest.NewRecorder()
+	mux.ServeHTTP(recNoAuth, reqNoAuth)
+	if recNoAuth.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unauthenticated /api/format, got %d", recNoAuth.Code)
+	}
+
+	body, _ := json.Marshal(map[string]string{"content": "#标题\n测试Go语言"})
+	req := httptest.NewRequest(http.MethodPost, "/api/format", bytes.NewReader(body))
+	req.Header.Set("X-Auth-Token", srv.Token())
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /api/format, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		OK      bool   `json:"ok"`
+		Content string `json:"content"`
+		Changed bool   `json:"changed"`
+		HTML    string `json:"html"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode /api/format response: %v", err)
+	}
+	if !resp.OK || !resp.Changed || resp.Content != "# 标题\n\n测试 Go 语言\n" {
+		t.Fatalf("unexpected /api/format result: %+v", resp)
+	}
+	if !strings.Contains(resp.HTML, "<h1") {
+		t.Fatalf("expected rendered heading HTML, got %q", resp.HTML)
+	}
+}

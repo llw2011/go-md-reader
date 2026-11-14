@@ -66,6 +66,7 @@
       <div class="toolbar-right">
         <div class="toolbar-group" role="group" aria-label="视图与排版">
           <button type="button" class="btn" id="edit-btn" aria-pressed="false" onclick="toggleEditor()" title="双栏源码编辑与转换预览 (Ctrl+E)">✏️ 编辑/源码</button>
+          <button type="button" class="btn" id="format-btn" onclick="autoFormatDocument()" title="Markdown 自动排版与中英文间距规范化 (Ctrl+Shift+F)">✨ 排版</button>
           <button type="button" class="btn" id="wide-btn" aria-pressed="false" onclick="toggleWideMode()" title="切换标准/全宽表格视图">↔️ 宽屏</button>
           <button type="button" class="btn" onclick="toggleSearch()" title="页面内全文检索 (Ctrl+F)">🔍 搜索</button>
           <button type="button" class="btn btn-compact" onclick="adjustFontSize(-1)" aria-label="缩小字号" title="缩小字号 (Ctrl + -)">A-</button>
@@ -106,7 +107,7 @@
           </div>
 
           <button type="button" class="btn" onclick="showAssocModal()" title="配置文件格式默认关联 (.md / .txt 等) 与托盘偏好">⚙️ 关联</button>
-          <button type="button" class="btn" onclick="showOTAModal()" title="GitHub OTA 在线检查更新与版本管理">☁️ 更新</button>
+          <button type="button" class="btn" onclick="showOTAModal()" title="在线检查更新与版本管理">☁️ 更新</button>
           <button type="button" class="btn btn-icon" onclick="triggerPrint()" aria-label="打印或另存为 PDF" title="打印或另存为 PDF (Ctrl+P)">🖨️</button>
           <button type="button" class="btn btn-icon" onclick="loadFile(true)" aria-label="刷新文档" title="刷新文档 (F5)">🔄</button>
         </div>
@@ -160,12 +161,13 @@
           <button class="btn" onclick="insertSnippet('*', '*')" title="斜体"><i>I</i></button>
           <button class="btn" onclick="insertSnippet('## ', '')" title="二级标题">H2</button>
           <button class="btn" onclick="insertSnippet('```\n', '\n```')" title="代码块">&lt;/&gt;</button>
-          <button class="btn" onclick="insertSnippet('> [!NOTE]\n> ', '')" title="提示框">💡 标注</button>
-          <button class="btn" onclick="insertSnippet('| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n', '')" title="插入表格">⊞ 表格</button>
+          <button type="button" class="btn" onclick="insertSnippet('> [!NOTE]\n> ', '')" title="提示框">💡 标注</button>
+          <button type="button" class="btn" onclick="insertSnippet('| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n', '')" title="插入表格">⊞ 表格</button>
+          <button type="button" class="btn" onclick="autoFormatDocument()" title="自动排版源码：规范标题、列表、表格对齐与中英文间距 (Ctrl+Shift+F)">✨ 自动排版</button>
         </div>
         <div style="display:flex; gap:6px;">
-          <button class="btn btn-primary" onclick="saveCurrentContent()" title="保存修改 (Ctrl+S)">💾 保存 (Ctrl+S)</button>
-          <button class="btn" onclick="saveAsMarkdown()" title="另存为新 .md 文件">📥 另存为</button>
+          <button type="button" class="btn btn-primary" onclick="saveCurrentContent()" title="保存修改 (Ctrl+S)">💾 保存 (Ctrl+S)</button>
+          <button type="button" class="btn" onclick="saveAsMarkdown()" title="另存为新 .md 文件">📥 另存为</button>
         </div>
       </div>
       <textarea class="editor-textarea" id="editor-textarea" placeholder="在此输入或编辑 Markdown 源码，右侧将实时同步预览..." oninput="handleEditorInput()"></textarea>
@@ -261,40 +263,27 @@
     </div>
   </div>
 
-  <!-- GitHub OTA Update Modal -->
+  <!-- Online Update Modal -->
   <div class="modal-backdrop" id="ota-modal" role="dialog" aria-modal="true" aria-labelledby="ota-modal-title" onclick="closeOTAModal(event)">
     <div class="stats-card stats-card-ota" onclick="event.stopPropagation()">
       <div class="stats-card-header">
-        <div class="stats-card-title" id="ota-modal-title">☁️ GitHub OTA 在线更新</div>
+        <div class="stats-card-title" id="ota-modal-title">☁️ 在线检查更新</div>
         <button type="button" class="stats-card-close" onclick="closeOTAModal()" aria-label="关闭在线更新">&times;</button>
       </div>
 
       <div class="ota-meta-row">
-        <span>仅在您主动点击检查时请求 GitHub Releases API，零静默外联。</span>
+        <span>仅在您主动点击检查时获取官方最新版本，零静默外联。</span>
         <span class="version-pill">当前版本: <code id="ota-current-ver">v2.2.1</code></span>
       </div>
 
       <div class="ota-form-stack">
-        <div>
-          <label class="field-label" for="ota-repo">GitHub 仓库 (owner/repo 或仓库链接)</label>
-          <input type="text" id="ota-repo" class="search-input input-full" placeholder="例如: username/go-md-reader">
-        </div>
-        <div>
-          <label class="field-label" for="ota-token">GitHub Token (可选，用于私有仓库或提升 API 限额，仅加密保存在本机)</label>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <input type="password" id="ota-token" class="search-input" style="flex:1;" placeholder="ghp_... / github_pat_... (留空保持现有或匿名访问)">
-            <button type="button" class="btn" onclick="clearSavedOTAToken()" id="ota-clear-token-btn" style="display:none; white-space:nowrap;">清除已存 Token</button>
-          </div>
-          <div id="ota-token-status" class="field-hint">未配置 Token（将使用匿名公开仓库模式）</div>
-        </div>
         <label class="choice-row">
-          <input type="checkbox" id="ota-prerelease">
+          <input type="checkbox" id="ota-prerelease" onchange="saveOTAPrerelease()">
           <span>包含 Pre-release 预发布测试版本</span>
         </label>
       </div>
 
       <div style="display:flex; gap:8px; justify-content:flex-end; margin-bottom: 12px;">
-        <button type="button" class="btn" onclick="saveOTASettings()">💾 保存设置</button>
         <button type="button" class="btn btn-primary" id="btn-ota-check" onclick="checkOTAUpdate()">🔍 检查最新版本</button>
       </div>
 

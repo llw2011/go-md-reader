@@ -1529,7 +1529,7 @@ async function showOTAModal() {
 
 function applyOTAConfigToUI(cfg) {
   const verEl = document.getElementById("ota-current-ver");
-  if (verEl) verEl.textContent = (cfg && cfg.currentVersion) || "v2.2.1";
+  if (verEl) verEl.textContent = (cfg && cfg.currentVersion) || "v2.3.0";
   const preEl = document.getElementById("ota-prerelease");
   if (preEl) preEl.checked = !!(cfg && cfg.includePrerelease);
 }

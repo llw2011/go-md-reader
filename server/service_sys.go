@@ -107,7 +107,7 @@ func (s *Server) DownloadOTAUpdate(ctx context.Context) (OTADownloadResponse, er
 		return OTADownloadResponse{}, errors.New("请先检查更新并确认存在可下载的 Windows 资产")
 	}
 
-	staged, err := s.updater.DownloadAndStageWithProgress(
+	staged, err := s.updater.DownloadAndStage(
 		ctx,
 		checkRes.LatestVersion,
 		checkRes.Asset,

@@ -100,6 +100,3 @@ func buildRestartScript(pid int, staged StagedUpdate, currentExe, openDocPath st
 		argPart,
 	)
 }
-
-// CompareSemver compares two semantic versions (e.g. "v2.0.1" vs "v2.0.0").
-// Returns 1 if a > b, -1 if a < b, 0 if equal.

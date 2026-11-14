@@ -148,14 +148,9 @@ func (pw *progressWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// DownloadAndStage downloads the selected asset to TEMP and verifies SHA-256 if available.
-func (m *Manager) DownloadAndStage(ctx context.Context, version string, asset *AssetInfo) (*StagedUpdate, error) {
-	return m.DownloadAndStageWithProgress(ctx, version, asset, nil)
-}
-
-// DownloadAndStageWithProgress downloads (or idempotently reuses staged cache) with live progress callbacks,
+// DownloadAndStage downloads (or idempotently reuses staged cache) with optional live progress callbacks,
 // coalescing concurrent requests for the same version and asset.
-func (m *Manager) DownloadAndStageWithProgress(ctx context.Context, version string, asset *AssetInfo, onProgress ProgressFunc) (*StagedUpdate, error) {
+func (m *Manager) DownloadAndStage(ctx context.Context, version string, asset *AssetInfo, onProgress ProgressFunc) (*StagedUpdate, error) {
 	if asset == nil {
 		return nil, fmt.Errorf("未找到可下载的 Windows 更新资产 (.exe)")
 	}

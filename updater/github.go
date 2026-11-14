@@ -11,14 +11,12 @@ import (
 )
 
 type ghRelease struct {
-	TagName     string    `json:"tag_name"`
-	Name        string    `json:"name"`
-	Body        string    `json:"body"`
-	HTMLURL     string    `json:"html_url"`
-	Draft       bool      `json:"draft"`
-	Prerelease  bool      `json:"prerelease"`
-	PublishedAt string    `json:"published_at"`
-	Assets      []ghAsset `json:"assets"`
+	TagName    string    `json:"tag_name"`
+	Name       string    `json:"name"`
+	Body       string    `json:"body"`
+	Draft      bool      `json:"draft"`
+	Prerelease bool      `json:"prerelease"`
+	Assets     []ghAsset `json:"assets"`
 }
 
 type ghAsset struct {
@@ -100,8 +98,6 @@ func (m *Manager) checkUpdateOnce(ctx context.Context) (*CheckResult, error) {
 		HasUpdate:      CompareSemver(rel.TagName, CurrentVersion) > 0,
 		ReleaseName:    rel.Name,
 		ReleaseNotes:   rel.Body,
-		HTMLURL:        rel.HTMLURL,
-		PublishedAt:    rel.PublishedAt,
 		Asset:          asset,
 	}, nil
 }

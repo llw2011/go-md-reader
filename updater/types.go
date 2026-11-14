@@ -51,8 +51,6 @@ type CheckResult struct {
 	HasUpdate      bool       `json:"hasUpdate"`
 	ReleaseName    string     `json:"releaseName"`
 	ReleaseNotes   string     `json:"releaseNotes"`
-	HTMLURL        string     `json:"htmlUrl"`
-	PublishedAt    string     `json:"publishedAt"`
 	Asset          *AssetInfo `json:"asset,omitempty"`
 }
 

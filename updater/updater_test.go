@@ -130,7 +130,7 @@ func TestCheckAndDownloadWithMockGitHub(t *testing.T) {
 		t.Fatalf("unexpected CheckResult: %+v", res)
 	}
 
-	staged, err := mgr.DownloadAndStage(context.Background(), res.LatestVersion, res.Asset)
+	staged, err := mgr.DownloadAndStage(context.Background(), res.LatestVersion, res.Asset, nil)
 	if err != nil {
 		t.Fatalf("DownloadAndStage failed: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestDownloadProgressAndIdempotentCoalescingAndCacheReuse(t *testing.T) {
 		t.Fatalf("expected concurrent CheckUpdate to issue 1 HTTP request, got %d", got)
 	}
 
-	// 2. Concurrent DownloadAndStageWithProgress coalesces into 1 download and streams % progress
+	// 2. Concurrent DownloadAndStage coalesces into 1 download and streams % progress
 	var dlWG sync.WaitGroup
 	var mu sync.Mutex
 	var eventsA, eventsB []DownloadProgress
@@ -230,7 +230,7 @@ func TestDownloadProgressAndIdempotentCoalescingAndCacheReuse(t *testing.T) {
 	dlWG.Add(2)
 	go func() {
 		defer dlWG.Done()
-		stA, errA = mgr.DownloadAndStageWithProgress(context.Background(), res.LatestVersion, res.Asset, func(p DownloadProgress) {
+		stA, errA = mgr.DownloadAndStage(context.Background(), res.LatestVersion, res.Asset, func(p DownloadProgress) {
 			mu.Lock()
 			eventsA = append(eventsA, p)
 			mu.Unlock()
@@ -239,7 +239,7 @@ func TestDownloadProgressAndIdempotentCoalescingAndCacheReuse(t *testing.T) {
 	go func() {
 		defer dlWG.Done()
 		time.Sleep(10 * time.Millisecond)
-		stB, errB = mgr.DownloadAndStageWithProgress(context.Background(), res.LatestVersion, res.Asset, func(p DownloadProgress) {
+		stB, errB = mgr.DownloadAndStage(context.Background(), res.LatestVersion, res.Asset, func(p DownloadProgress) {
 			mu.Lock()
 			eventsB = append(eventsB, p)
 			mu.Unlock()
@@ -265,7 +265,7 @@ func TestDownloadProgressAndIdempotentCoalescingAndCacheReuse(t *testing.T) {
 
 	// 3. Subsequent download call is idempotent & reuses verified local cache with 0 network requests
 	var cachedEvents []DownloadProgress
-	stCached, err := mgr.DownloadAndStageWithProgress(context.Background(), res.LatestVersion, res.Asset, func(p DownloadProgress) {
+	stCached, err := mgr.DownloadAndStage(context.Background(), res.LatestVersion, res.Asset, func(p DownloadProgress) {
 		cachedEvents = append(cachedEvents, p)
 	})
 	if err != nil {
@@ -291,7 +291,7 @@ func TestDownloadProgressAndIdempotentCoalescingAndCacheReuse(t *testing.T) {
 	if found := mgr.FindStaged(res.LatestVersion, res.Asset); found != nil {
 		t.Fatalf("expected FindStaged to reject tampered cache, got %+v", found)
 	}
-	stRedownloaded, err := mgr.DownloadAndStageWithProgress(context.Background(), res.LatestVersion, res.Asset, nil)
+	stRedownloaded, err := mgr.DownloadAndStage(context.Background(), res.LatestVersion, res.Asset, nil)
 	if err != nil || stRedownloaded.ReusedCache {
 		t.Fatalf("expected fresh re-download after tampering, got staged=%+v err=%v", stRedownloaded, err)
 	}

@@ -178,7 +178,7 @@ func main() {
 		title = "Go Markdown Reader 卸载向导"
 	}
 
-	wvData := filepath.Join(os.TempDir(), "GoMDSetup_WebView")
+	wvData := filepath.Join(os.TempDir(), fmt.Sprintf("GoMDSetup_WebView_%d", os.Getpid()))
 	wvWindow = webview2.NewWithOptions(webview2.WebViewOptions{
 		Debug:     false,
 		AutoFocus: true,
@@ -192,12 +192,14 @@ func main() {
 		},
 	})
 	if wvWindow == nil {
+		_ = os.RemoveAll(wvData)
 		return
 	}
 
 	wvWindow.Navigate(fmt.Sprintf("http://127.0.0.1:%d/", port))
 	wvWindow.Run()
 	wvWindow.Destroy()
+	_ = os.RemoveAll(wvData)
 	cleanupPendingDir()
 }
 

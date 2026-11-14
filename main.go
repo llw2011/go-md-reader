@@ -6,6 +6,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/jchv/go-webview2"
 	"go-md-reader/assoc"
@@ -13,6 +16,7 @@ import (
 	"go-md-reader/server"
 	"go-md-reader/tray"
 	"go-md-reader/updater"
+	"golang.org/x/sys/windows"
 )
 
 //go:embed assets/*
@@ -55,12 +59,16 @@ func main() {
 		}
 	}()
 
-	// Isolated WebView2 runtime data path in LocalAppData
+	// Per-process isolated WebView2 runtime data directory prevents lock/elevation conflicts
+	// and stale cookie leaks across restarts; user preferences persist in AppData\ui_prefs.json.
 	localApp := os.Getenv("LOCALAPPDATA")
 	if localApp == "" {
 		localApp = os.TempDir()
 	}
-	dataPath := filepath.Join(localApp, "GoMarkdownReader", "WebViewData")
+	sessionsRoot := filepath.Join(localApp, "GoMarkdownReader", "Sessions")
+	sweepStaleSessionDirs(sessionsRoot)
+	dataPath := filepath.Join(sessionsRoot, fmt.Sprintf("wv-%d", os.Getpid()))
+	defer os.RemoveAll(dataPath)
 
 	// Initialize Windows WebView2 Window
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
@@ -105,4 +113,32 @@ func main() {
 
 	w.Navigate(srv.URL())
 	w.Run()
+}
+
+func sweepStaleSessionDirs(root string) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return
+	}
+	now := time.Now()
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), "wv-") {
+			continue
+		}
+		pid, err := strconv.Atoi(strings.TrimPrefix(e.Name(), "wv-"))
+		if err != nil || pid <= 0 || pid == os.Getpid() {
+			continue
+		}
+		if h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid)); err == nil {
+			var code uint32
+			stillAlive := windows.GetExitCodeProcess(h, &code) == nil && code == 259 // STILL_ACTIVE
+			windows.CloseHandle(h)
+			if stillAlive {
+				continue
+			}
+		} else if info, sErr := e.Info(); sErr == nil && now.Sub(info.ModTime()) < 2*time.Minute {
+			continue
+		}
+		_ = os.RemoveAll(filepath.Join(root, e.Name()))
+	}
 }

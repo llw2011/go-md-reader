@@ -31,9 +31,8 @@ const THEMES = [
   { id: "forest", label: "🌲 护眼绿" }
 ];
 
-document.addEventListener("DOMContentLoaded", () => {
-  initTheme();
-  initReadingPrefs();
+document.addEventListener("DOMContentLoaded", async () => {
+  await initReadingPrefs();
   initDragDrop();
   initShortcuts();
   initScrollProgress();
@@ -213,8 +212,8 @@ async function loadFile(preserveScroll = false) {
       if (preserveScroll) {
         scrollContainer.scrollTop = lastScrollPos;
       } else if (data.filepath && !data.isMemory) {
-        const savedScroll = parseInt(localStorage.getItem("go-md-scroll:" + data.filepath) || "0", 10);
-        scrollContainer.scrollTop = isNaN(savedScroll) ? 0 : savedScroll;
+        const savedScroll = (uiPrefsCache.scrollPositions && uiPrefsCache.scrollPositions[data.filepath]) || 0;
+        scrollContainer.scrollTop = savedScroll;
       } else {
         scrollContainer.scrollTop = 0;
       }
@@ -628,13 +627,14 @@ function initScrollProgress() {
     }
 
     if (currentDocData && currentDocData.filepath && !currentDocData.isMemory) {
-      const key = "go-md-scroll:" + currentDocData.filepath;
+      const fpath = currentDocData.filepath;
+      const top = Math.round(container.scrollTop);
+      if (!uiPrefsCache.scrollPositions) uiPrefsCache.scrollPositions = {};
+      uiPrefsCache.scrollPositions[fpath] = top;
       clearTimeout(scrollSaveTimer);
       scrollSaveTimer = setTimeout(() => {
-        try {
-          localStorage.setItem(key, String(Math.round(container.scrollTop)));
-        } catch (e) {}
-      }, 200);
+        persistUIPrefs({ scrollPath: fpath, scrollTop: top });
+      }, 250);
     }
   });
 }
@@ -1037,32 +1037,29 @@ function closeAllDropdowns() {
 }
 
 function addRecentFile(name, path) {
-  try {
-    let recent = JSON.parse(localStorage.getItem("go-md-recent-files") || "[]");
-    recent = recent.filter(item => item.path !== path);
-    recent.unshift({ name, path, time: Date.now() });
-    if (recent.length > 12) recent.pop();
-    localStorage.setItem("go-md-recent-files", JSON.stringify(recent));
-    renderRecentMenu();
-  } catch (e) {}
+  let recent = Array.isArray(uiPrefsCache.recentFiles) ? uiPrefsCache.recentFiles.slice() : [];
+  recent = recent.filter(item => item.path !== path);
+  recent.unshift({ name, path });
+  if (recent.length > 10) recent = recent.slice(0, 10);
+  uiPrefsCache.recentFiles = recent;
+  renderRecentMenu();
+  persistUIPrefs({ recentFiles: recent });
 }
 
 function renderRecentMenu() {
   const menu = document.getElementById("recent-menu");
   if (!menu) return;
-  try {
-    const recent = JSON.parse(localStorage.getItem("go-md-recent-files") || "[]");
-    if (recent.length === 0) {
-      menu.innerHTML = `<li style="padding:10px 14px; font-size:12px; color:var(--text-muted); text-align:center;">暂无打开历史</li>`;
-      return;
-    }
-    menu.innerHTML = recent.map(item => `
-      <li class="dropdown-item" data-path="${escapeHtml(item.path)}">
-        <span class="dropdown-item-name">${escapeHtml(item.name)}</span>
-        <span class="dropdown-item-path" title="${escapeHtml(item.path)}">${escapeHtml(item.path)}</span>
-      </li>
-    `).join("");
-  } catch (e) {}
+  const recent = Array.isArray(uiPrefsCache.recentFiles) ? uiPrefsCache.recentFiles : [];
+  if (recent.length === 0) {
+    menu.innerHTML = `<li style="padding:10px 14px; font-size:12px; color:var(--text-muted); text-align:center;">暂无打开历史</li>`;
+    return;
+  }
+  menu.innerHTML = recent.map(item => `
+    <li class="dropdown-item" data-path="${escapeHtml(item.path)}">
+      <span class="dropdown-item-name">${escapeHtml(item.name)}</span>
+      <span class="dropdown-item-path" title="${escapeHtml(item.path)}">${escapeHtml(item.path)}</span>
+    </li>
+  `).join("");
 }
 
 function confirmDiscardEditorChanges() {
@@ -1289,7 +1286,7 @@ async function showOTAModal() {
 }
 
 function applyOTAConfigToUI(cfg) {
-  document.getElementById("ota-current-ver").textContent = cfg.currentVersion || "v2.1.0";
+  document.getElementById("ota-current-ver").textContent = cfg.currentVersion || "v2.1.1";
   document.getElementById("ota-repo").value = cfg.repo || "";
   document.getElementById("ota-prerelease").checked = !!cfg.includePrerelease;
   const statusEl = document.getElementById("ota-token-status");
@@ -1452,16 +1449,44 @@ async function applyOTAUpdate() {
   }
 }
 
-// Sidebar, Wide Mode, Theme & Font Size Controls
-function initReadingPrefs() {
-  const savedFont = parseInt(localStorage.getItem("go-md-fontsize") || "16", 10);
-  if (!isNaN(savedFont) && savedFont >= 12 && savedFont <= 26) {
+// Sidebar, Wide Mode, Theme & Font Size Controls (persisted via /api/prefs)
+let uiPrefsCache = {
+  theme: "light",
+  fontSize: 16,
+  sidebarHidden: false,
+  recentFiles: [],
+  scrollPositions: {}
+};
+
+async function persistUIPrefs(patch) {
+  try {
+    await apiFetch("/api/prefs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    });
+  } catch (e) {}
+}
+
+async function initReadingPrefs() {
+  try {
+    const res = await apiFetch("/api/prefs");
+    if (res.ok) {
+      const data = await res.json();
+      if (data) uiPrefsCache = { ...uiPrefsCache, ...data };
+    }
+  } catch (e) {}
+
+  setTheme(uiPrefsCache.theme || "light", false);
+
+  const savedFont = uiPrefsCache.fontSize || 16;
+  if (savedFont >= 12 && savedFont <= 26) {
     currentFontSize = savedFont;
     document.documentElement.style.setProperty("--content-font-size", `${currentFontSize}px`);
   }
-  const sidebarHidden = localStorage.getItem("go-md-sidebar") === "hidden";
+
   const sidebar = document.getElementById("sidebar");
-  if (sidebar && sidebarHidden) {
+  if (sidebar && uiPrefsCache.sidebarHidden) {
     sidebar.classList.add("hidden");
   }
 }
@@ -1469,9 +1494,8 @@ function initReadingPrefs() {
 function toggleSidebar() {
   const sidebar = document.getElementById("sidebar");
   const isHidden = sidebar.classList.toggle("hidden");
-  try {
-    localStorage.setItem("go-md-sidebar", isHidden ? "hidden" : "open");
-  } catch (e) {}
+  uiPrefsCache.sidebarHidden = isHidden;
+  persistUIPrefs({ sidebarHidden: isHidden });
 }
 
 function applyWideMode(isWide, isAuto = false) {
@@ -1486,23 +1510,21 @@ function toggleWideMode(forceState) {
   applyWideMode(isWide, false);
 }
 
-function initTheme() {
-  const saved = localStorage.getItem("go-md-theme") || "light";
-  setTheme(saved);
-}
-
 function cycleTheme() {
   const current = document.documentElement.getAttribute("data-theme") || "light";
   const idx = THEMES.findIndex(t => t.id === current);
   const next = THEMES[(idx + 1) % THEMES.length];
-  setTheme(next.id);
+  setTheme(next.id, true);
   showToast(`已切换至: ${next.label}模式`);
 }
 
-function setTheme(themeId) {
+function setTheme(themeId, save = true) {
   const found = THEMES.find(t => t.id === themeId) || THEMES[0];
   document.documentElement.setAttribute("data-theme", found.id);
-  localStorage.setItem("go-md-theme", found.id);
+  uiPrefsCache.theme = found.id;
+  if (save) {
+    persistUIPrefs({ theme: found.id });
+  }
   const icon = document.getElementById("theme-icon");
   if (icon) icon.textContent = found.label;
 }
@@ -1512,9 +1534,8 @@ function adjustFontSize(delta) {
   if (delta === 0) currentFontSize = 16;
   else currentFontSize = Math.min(26, Math.max(12, currentFontSize + delta));
   document.documentElement.style.setProperty("--content-font-size", `${currentFontSize}px`);
-  try {
-    localStorage.setItem("go-md-fontsize", String(currentFontSize));
-  } catch (e) {}
+  uiPrefsCache.fontSize = currentFontSize;
+  persistUIPrefs({ fontSize: currentFontSize });
 }
 
 // Live file watcher via SSE

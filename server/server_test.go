@@ -64,12 +64,22 @@ func TestAuthTokenEnforcementAndCookie(t *testing.T) {
 	cookies := recGoodIdx.Result().Cookies()
 	found := false
 	for _, c := range cookies {
-		if c.Name == "gomd_token" && c.Value == srv.Token() && c.HttpOnly {
+		if c.Name == srv.cookieName() && c.Value == srv.Token() && c.HttpOnly {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("expected HttpOnly gomd_token cookie to be set on valid index request")
+		t.Fatalf("expected HttpOnly %s cookie to be set on valid index request", srv.cookieName())
+	}
+
+	// Stale cookie from previous session/port must NOT block valid query token navigation
+	reqStaleCookie := httptest.NewRequest(http.MethodGet, "/?token="+srv.Token(), nil)
+	reqStaleCookie.AddCookie(&http.Cookie{Name: "gomd_token", Value: "stale-old-token"})
+	reqStaleCookie.AddCookie(&http.Cookie{Name: srv.cookieName(), Value: "stale-port-token"})
+	recStaleCookie := httptest.NewRecorder()
+	mux.ServeHTTP(recStaleCookie, reqStaleCookie)
+	if recStaleCookie.Code == http.StatusForbidden {
+		t.Fatalf("stale cookie unexpectedly caused 403 on valid ?token= navigation")
 	}
 }
 
@@ -214,5 +224,26 @@ func TestAssocNotepadEndpoint(t *testing.T) {
 	}
 	if err := json.NewDecoder(recGet.Body).Decode(&payload); err != nil || !payload.OK {
 		t.Fatalf("unexpected /api/assoc/notepad payload: ok=%v err=%v", payload.OK, err)
+	}
+}
+
+func TestUIPrefsEndpoint(t *testing.T) {
+	srv := newTestServer(t, "")
+	prefsFile := filepath.Join(t.TempDir(), "ui_prefs.json")
+	srv.uiPrefs = newUIPrefsStore(prefsFile)
+	mux := srv.buildMux()
+
+	postBody := bytes.NewBufferString(`{"theme":"dark","fontSize":18,"sidebarHidden":true,"scrollPath":"C:\\docs\\a.md","scrollTop":420}`)
+	reqPost := httptest.NewRequest(http.MethodPost, "/api/prefs", postBody)
+	reqPost.Header.Set("X-Auth-Token", srv.Token())
+	recPost := httptest.NewRecorder()
+	mux.ServeHTTP(recPost, reqPost)
+	if recPost.Code != http.StatusOK {
+		t.Fatalf("POST /api/prefs failed: %d", recPost.Code)
+	}
+
+	reloaded := newUIPrefsStore(prefsFile).get()
+	if reloaded.Theme != "dark" || reloaded.FontSize != 18 || !reloaded.SidebarHidden || reloaded.ScrollPositions[`C:\docs\a.md`] != 420 {
+		t.Fatalf("unexpected reloaded UIPrefs: %+v", reloaded)
 	}
 }

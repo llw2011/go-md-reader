@@ -31,6 +31,7 @@ type Server struct {
 	assetsFS        embed.FS
 	parser          *parser.MarkdownParser
 	updater         *updater.Manager
+	uiPrefs         *uiPrefsStore
 	mu              sync.RWMutex
 	currentFilePath string
 	currentDir      string
@@ -69,6 +70,7 @@ func New(assets embed.FS, initialFile string) (*Server, error) {
 		assetsFS: assets,
 		parser:   parser.NewMarkdownParser(),
 		updater:  updater.NewManager(""),
+		uiPrefs:  newUIPrefsStore(""),
 		clients:  make(map[chan string]struct{}),
 		token:    token,
 		listener: ln,
@@ -106,19 +108,26 @@ func (s *Server) isValidToken(candidate string) bool {
 	return subtle.ConstantTimeCompare([]byte(candidate), []byte(s.token)) == 1
 }
 
-func (s *Server) extractToken(r *http.Request) string {
-	if c, err := r.Cookie("gomd_token"); err == nil && c.Value != "" {
-		return c.Value
-	}
+func (s *Server) cookieName() string {
+	return fmt.Sprintf("gomd_token_%d", s.port)
+}
+
+func (s *Server) hasValidToken(r *http.Request) bool {
 	if h := r.Header.Get("X-Auth-Token"); h != "" {
-		return h
+		return s.isValidToken(h)
 	}
-	return r.URL.Query().Get("token")
+	if q := r.URL.Query().Get("token"); q != "" {
+		return s.isValidToken(q)
+	}
+	if c, err := r.Cookie(s.cookieName()); err == nil && c.Value != "" {
+		return s.isValidToken(c.Value)
+	}
+	return false
 }
 
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.isValidToken(s.extractToken(r)) {
+		if !s.hasValidToken(r) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -131,7 +140,11 @@ func (s *Server) buildMux() *http.ServeMux {
 
 	subFS, err := fs.Sub(s.assetsFS, "assets")
 	if err == nil {
-		mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(subFS))))
+		fileSrv := http.StripPrefix("/assets/", http.FileServer(http.FS(subFS)))
+		mux.HandleFunc("/assets/", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "no-store")
+			fileSrv.ServeHTTP(w, r)
+		})
 	}
 
 	mux.HandleFunc("/", s.handleIndex)
@@ -148,6 +161,7 @@ func (s *Server) buildMux() *http.ServeMux {
 	mux.HandleFunc("/api/open-content", s.requireAuth(s.handleOpenContent))
 	mux.HandleFunc("/api/open-binary", s.requireAuth(s.handleOpenBinary))
 	mux.HandleFunc("/api/tray/prefs", s.requireAuth(s.handleTrayPrefs))
+	mux.HandleFunc("/api/prefs", s.requireAuth(s.handleUIPrefs))
 	mux.HandleFunc("/api/ota/config", s.requireAuth(s.handleOTAConfig))
 	mux.HandleFunc("/api/ota/check", s.requireAuth(s.handleOTACheck))
 	mux.HandleFunc("/api/ota/download", s.requireAuth(s.handleOTADownload))
@@ -226,13 +240,13 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !s.isValidToken(s.extractToken(r)) {
+	if !s.hasValidToken(r) {
 		http.Error(w, "Forbidden: invalid session token", http.StatusForbidden)
 		return
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     "gomd_token",
+		Name:     s.cookieName(),
 		Value:    s.token,
 		Path:     "/",
 		HttpOnly: true,
@@ -244,6 +258,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Template error", http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(data)
 }

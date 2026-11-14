@@ -48,6 +48,31 @@ func TestFormatMarkdown(t *testing.T) {
 			in:   "副标题\n---\n\n$$\nx=中文+English\n$$\n\n\n\n结尾",
 			want: "副标题\n---\n\n$$\nx=中文+English\n$$\n\n结尾\n",
 		},
+		{
+			name: "preserve_toml_frontmatter_and_shebang_and_seven_hashes",
+			in:   "+++\ntitle = \"Go工具\"\n+++\n\n#!/bin/bash\n#######保留七个井号Go\n\n#   一级标题 ##  \n***\n___\n+100次试验\n--flag参数",
+			want: "+++\ntitle = \"Go工具\"\n+++\n\n#!/bin/bash\n#######保留七个井号 Go\n\n# 一级标题\n\n***\n\n___\n\n+100 次试验\n--flag 参数\n",
+		},
+		{
+			name: "preserve_tilde_and_blockquote_fences",
+			in:   "前文\n~~~python\nprint(\"中文andEnglish\")\n~~~~\n后文\n\n>引用开始\n> ```js\n> const a=\"中文Go\";\n> ```\n>引用结束",
+			want: "前文\n\n~~~python\nprint(\"中文andEnglish\")\n~~~~\n\n后文\n\n> 引用开始\n> ```js\n> const a=\"中文Go\";\n> ```\n> 引用结束\n",
+		},
+		{
+			name: "ordered_list_paren_and_multispaces_and_nested_blockquote",
+			in:   "1)第一项\n2)   [X]完成Go集成\n*   [ ]待检查\n>   \n> [!WARNING]请确认Go配置\n正文",
+			want: "1) 第一项\n2) [x] 完成 Go 集成\n* [ ] 待检查\n>\n> [!WARNING] 请确认 Go 配置\n正文\n",
+		},
+		{
+			name: "protected_spans_links_images_html_math_escapes",
+			in:   "参考[文档Go指南](https://example.com/a_b)与![图Go](img/a.png),公式$x+y=Go$及<span>标签Go</span>还有\\*转义。",
+			want: "参考[文档Go指南](https://example.com/a_b) 与![图Go](img/a.png),公式$x+y=Go$及<span>标签 Go</span>还有\\*转义。\n",
+		},
+		{
+			name: "table_escaped_pipe_code_pipe_and_ragged_cols",
+			in:   "|名称|示例|\n|---|---|\n|转义\\|管线|调用`a|b`方法|额外列Go|\n|缺列|\n",
+			want: "| 名称       | 示例            |           |\n| ---------- | --------------- | --------- |\n| 转义\\|管线 | 调用 `a|b` 方法 | 额外列 Go |\n| 缺列       |                 |           |\n",
+		},
 	}
 
 	for _, tc := range tests {
@@ -55,6 +80,10 @@ func TestFormatMarkdown(t *testing.T) {
 			got := FormatMarkdown(tc.in)
 			if got != tc.want {
 				t.Fatalf("FormatMarkdown() mismatch:\n--- GOT ---\n%q\n--- WANT ---\n%q", got, tc.want)
+			}
+			// Auto-formatting must be strictly idempotent on every fixture.
+			if again := FormatMarkdown(got); again != got {
+				t.Fatalf("FormatMarkdown is not idempotent:\n--- ONCE ---\n%q\n--- TWICE ---\n%q", got, again)
 			}
 		})
 	}

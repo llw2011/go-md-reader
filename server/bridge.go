@@ -38,21 +38,22 @@ func (s *Server) BindWebView(wv WebViewBridge) error {
 	})
 
 	return wv.Bind("__appCall", func(id int, method string, paramsJSON string) {
+		reject := func(err error) {
+			errLit, _ := json.Marshal(err.Error())
+			wv.Dispatch(func() {
+				wv.Eval(fmt.Sprintf("if (window.__rpcReject) window.__rpcReject(%d, %s);", id, errLit))
+			})
+		}
+
 		go func() {
 			res, err := s.HandleRPC(context.Background(), method, json.RawMessage(paramsJSON))
 			if err != nil {
-				errLit, _ := json.Marshal(err.Error())
-				wv.Dispatch(func() {
-					wv.Eval(fmt.Sprintf("if (window.__rpcReject) window.__rpcReject(%d, %s);", id, errLit))
-				})
+				reject(err)
 				return
 			}
 			resLit, err := json.Marshal(res)
 			if err != nil {
-				errLit, _ := json.Marshal(err.Error())
-				wv.Dispatch(func() {
-					wv.Eval(fmt.Sprintf("if (window.__rpcReject) window.__rpcReject(%d, %s);", id, errLit))
-				})
+				reject(err)
 				return
 			}
 			wv.Dispatch(func() {

@@ -1422,6 +1422,12 @@ function renderNotepadStatus(st) {
 async function toggleNotepadReplacement() {
   const btn = document.getElementById("btn-notepad-toggle");
   const wantReplace = !currentNotepadReplaced;
+  if (wantReplace) {
+    const confirmed = window.confirm(
+      "替换 Windows 记事本将写入系统级 IFEO 注册表项（需 UAC 管理员授权）并接管 notepad.exe 启动。\n卸载或再次点击可随时恢复默认记事本。确定继续吗？"
+    );
+    if (!confirmed) return;
+  }
   if (btn) btn.disabled = true;
   try {
     const data = await rpcCall("assoc.notepad.set", { replace: wantReplace });

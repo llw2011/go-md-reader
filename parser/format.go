@@ -93,7 +93,7 @@ func FormatMarkdown(src string) string {
 					break
 				}
 			}
-			if i < len(lines) && strings.TrimSpace(lines[i]) != "" {
+			if i < len(lines) && strings.TrimSpace(lines[i]) != "" && !strings.HasPrefix(strings.TrimSpace(prefix), ">") {
 				out = append(out, "")
 			}
 			continue

@@ -1471,7 +1471,7 @@ async function showOTAModal() {
 }
 
 function applyOTAConfigToUI(cfg) {
-  document.getElementById("ota-current-ver").textContent = cfg.currentVersion || "v2.2.0";
+  document.getElementById("ota-current-ver").textContent = cfg.currentVersion || "v2.2.1";
   document.getElementById("ota-repo").value = cfg.repo || "";
   document.getElementById("ota-prerelease").checked = !!cfg.includePrerelease;
   const statusEl = document.getElementById("ota-token-status");

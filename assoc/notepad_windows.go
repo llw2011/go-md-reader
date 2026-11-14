@@ -25,11 +25,11 @@ const (
 
 // NotepadStatus describes whether Windows Notepad is currently redirected to Go Markdown Reader.
 type NotepadStatus struct {
-	Replaced    bool   `json:"replaced"`
-	SystemWide  bool   `json:"systemWide"`
-	PerUser     bool   `json:"perUser"`
-	ExePath     string `json:"exePath,omitempty"`
-	Debugger    string `json:"debugger,omitempty"`
+	Replaced   bool   `json:"replaced"`
+	SystemWide bool   `json:"systemWide"`
+	PerUser    bool   `json:"perUser"`
+	ExePath    string `json:"exePath,omitempty"`
+	Debugger   string `json:"debugger,omitempty"`
 }
 
 // GetNotepadStatus inspects HKLM IFEO and HKCU App Paths / Applications keys.

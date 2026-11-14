@@ -88,3 +88,163 @@ func TestFormatMarkdown(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatMarkdownEdgeCases(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "crlf_and_cr_normalized_and_multiple_blank_lines_collapsed",
+			in:   "第一行Go   \r\n\r\n\r\n\r\n第二行Rust\t  \r第三行\r",
+			want: "第一行 Go\n\n第二行 Rust\n第三行\n",
+		},
+		{
+			name: "unclosed_frontmatter_treated_as_hr_safely",
+			in:   "---\ntitle: 未闭合Go\nbody: test\n",
+			want: "---\n\ntitle: 未闭合 Go\nbody: test\n",
+		},
+		{
+			name: "all_atx_heading_levels_and_closing_hashes",
+			in:   "#标题1 ###\n##标题2##\n###标题3 ###\n####标题4\n#####标题5\n######标题6Go ##",
+			want: "# 标题 1\n\n## 标题 2##\n\n### 标题 3\n\n#### 标题 4\n\n##### 标题 5\n\n###### 标题 6Go\n",
+		},
+		{
+			name: "whitespace_only_lists_and_bare_blockquote",
+			in:   "-   \n* 内容Go\n+  \n1.   \n2)条目A\n>\n> 引用Go",
+			want: "-\n* 内容 Go\n+\n1.\n2) 条目 A\n>\n> 引用 Go\n",
+		},
+		{
+			name: "multiline_fenced_code_inside_nested_blockquote",
+			in:   ">> ```go\n>> fmt.Println(\"测试NoSpace\")\n>> ```\n>> 正文Go语言",
+			want: ">> ```go\n>> fmt.Println(\"测试NoSpace\")\n>> ```\n> > 正文 Go 语言\n",
+		},
+		{
+			name: "fenced_code_preserves_trailing_spaces",
+			in:   "```text\nkeep trailing   \n测试Go   \n```",
+			want: "```text\nkeep trailing   \n测试Go   \n```\n",
+		},
+		{
+			name: "bare_alert_without_trailing_text_and_hr",
+			in:   "> [!TIP]\n> 正文Go\n***\n___\n",
+			want: "> [!TIP]\n> 正文 Go\n\n***\n\n___\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := FormatMarkdown(tc.in)
+			if got != tc.want {
+				t.Fatalf("FormatMarkdown() mismatch:\n--- GOT ---\n%q\n--- WANT ---\n%q", got, tc.want)
+			}
+			if again := FormatMarkdown(got); again != got {
+				t.Fatalf("FormatMarkdown is not idempotent:\n--- ONCE ---\n%q\n--- TWICE ---\n%q", got, again)
+			}
+		})
+	}
+}
+
+func TestFormatTableAlignmentAndWidth(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "minimum_column_width_three_and_all_alignments",
+			in:   "|a|b|c|d|\n|:--|:--:|--:|--|\n|1|2|3|4|",
+			want: "| a   | b   | c   | d   |\n| :-- | :-: | --: | --- |\n| 1   | 2   | 3   | 4   |\n",
+		},
+		{
+			name: "cjk_and_emoji_double_width_padding",
+			in:   "|名称|图标|说明|\n|---|---|---|\n|Go语言|🚀|快速Go|",
+			want: "| 名称    | 图标 | 说明    |\n| ------- | ---- | ------- |\n| Go 语言 | 🚀   | 快速 Go |\n",
+		},
+		{
+			name: "table_inside_document_keeps_blank_separation",
+			in:   "前言Go:\n|k|v|\n|---|---|\n|中文Go|值1|\n后文Rust",
+			want: "前言 Go:\n\n| k       | v    |\n| ------- | ---- |\n| 中文 Go | 值 1 |\n\n后文 Rust\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := FormatMarkdown(tc.in)
+			if got != tc.want {
+				t.Fatalf("table format mismatch:\n--- GOT ---\n%s\n--- WANT ---\n%s", got, tc.want)
+			}
+			if again := FormatMarkdown(got); again != got {
+				t.Fatalf("table format not idempotent:\n%s\nvs\n%s", got, again)
+			}
+		})
+	}
+}
+
+func TestFormatInlineProtectedSpansAndPangu(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "percentage_spacing_with_cjk",
+			in:   "准确率99.5%可用,同比100%增长",
+			want: "准确率 99.5% 可用,同比 100% 增长\n",
+		},
+		{
+			name: "double_backtick_and_mailto_and_angle_url",
+			in:   "用法``a`b测试Go``请见<https://example.com/go>或<mailto:test@example.com>详情",
+			want: "用法 ``a`b测试Go`` 请见<https://example.com/go>或<mailto:test@example.com>详情\n",
+		},
+		{
+			name: "japanese_and_korean_with_ascii",
+			in:   "日本語Goテスト123と한국어Rustテスト",
+			want: "日本語 Go テスト 123 と한국어 Rust テスト\n",
+		},
+		{
+			name: "html_kbd_and_math_and_image_alt_protected",
+			in:   "按<kbd>Ctrl+S</kbd>保存![Go图](img/go.png)公式$x_1+y_2$完成",
+			want: "按<kbd>Ctrl+S</kbd>保存![Go图](img/go.png) 公式$x_1+y_2$完成\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := FormatMarkdown(tc.in)
+			if got != tc.want {
+				t.Fatalf("inline format mismatch:\n--- GOT ---\n%q\n--- WANT ---\n%q", got, tc.want)
+			}
+			if again := FormatMarkdown(got); again != got {
+				t.Fatalf("inline format not idempotent: %q != %q", again, got)
+			}
+		})
+	}
+}
+
+func TestFormatMarkdownIdempotencyCorpus(t *testing.T) {
+	corpus := `---
+title: Demo
+date: 2026-11-14
+---
+#项目Go说明 ###
+正文包含95%完成度和` + "`code_span`" + `以及[链接](https://go.dev/doc)描述.
+*条目1
+- [x]任务A完成100%测试
+> [!WARNING] 注意Go版本
+> 内容Rust支持
+
+|字段|值|对齐|
+|:---|:---:|---:|
+|名称Go|42|右|
+
+~~~go
+fmt.Println("不做Pangu间距Go123")
+~~~
+`
+	once := FormatMarkdown(corpus)
+	twice := FormatMarkdown(once)
+	if twice != once {
+		t.Fatalf("complex corpus failed idempotency:\n--- ONCE ---\n%s\n--- TWICE ---\n%s", once, twice)
+	}
+}

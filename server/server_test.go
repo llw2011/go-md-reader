@@ -24,6 +24,7 @@ func newTestServer(t *testing.T, initialFile string) *Server {
 		t.Fatalf("New server failed: %v", err)
 	}
 	srv.listener.Close()
+	t.Cleanup(func() { _ = srv.Close() })
 	return srv
 }
 
@@ -278,5 +279,52 @@ func TestOTAIdempotentApplyGuardAndProgressSink(t *testing.T) {
 	}
 	if okResp, ok := res.(OKResponse); !ok || !okResp.OK {
 		t.Fatalf("expected OKResponse{OK:true}, got %#v", res)
+	}
+}
+
+func TestEventDrivenWatcherDetectsExternalWriteWithoutEchoOnSave(t *testing.T) {
+	dir := t.TempDir()
+	docPath := filepath.Join(dir, "watched.md")
+	if err := os.WriteFile(docPath, []byte("# Initial"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := newTestServer(t, docPath)
+	events := make(chan string, 8)
+	srv.SetEventSink(func(ev string) {
+		events <- ev
+	})
+
+	// Give watcher goroutine a brief moment to register FindFirstChangeNotification.
+	time.Sleep(40 * time.Millisecond)
+
+	// Self-save via doc.save must NOT echo a reload event.
+	saveRaw, _ := json.Marshal(SaveRequest{Mode: "save", Content: "# Saved By UI"})
+	if _, err := srv.HandleRPC(context.Background(), "doc.save", saveRaw); err != nil {
+		t.Fatalf("doc.save failed: %v", err)
+	}
+	select {
+	case ev := <-events:
+		t.Fatalf("unexpected reload echo on self doc.save: %q", ev)
+	case <-time.After(120 * time.Millisecond):
+	}
+
+	// External write must trigger event-driven reload promptly (well under 1s, no polling).
+	extPayload := []byte("# Updated Externally With Longer Text")
+	if err := os.WriteFile(docPath, extPayload, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case ev := <-events:
+		if ev != "reload" {
+			t.Fatalf("expected reload event, got %q", ev)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out waiting for kernel event-driven reload notification")
+	}
+
+	if got := srv.GetFile(); got.RawContent != string(extPayload) {
+		t.Fatalf("expected updated external content, got %q", got.RawContent)
 	}
 }

@@ -79,6 +79,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("启动本地服务失败: %v", err)
 	}
+	defer srv.Close()
 
 	go func() {
 		if err := srv.Start(); err != nil {

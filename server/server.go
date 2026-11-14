@@ -48,6 +48,7 @@ type Server struct {
 	nonce           string
 	listener        net.Listener
 	port            int
+	watcher         fileWatcher
 }
 
 // New creates a new Server instance bound to an ephemeral loopback port.
@@ -73,6 +74,7 @@ func New(assets embed.FS, initialFile string) (*Server, error) {
 		port:     port,
 	}
 
+	s.initWatcher()
 	if initialFile != "" {
 		s.SetCurrentFile(initialFile)
 	}
@@ -184,6 +186,7 @@ func (s *Server) setCurrentFile(path string, notify bool) {
 		s.fileSize = info.Size()
 	}
 	s.mu.Unlock()
+	s.notifyWatcher()
 
 	if notify {
 		s.TriggerEvent("reload")
@@ -201,6 +204,7 @@ func (s *Server) setMemoryContent(name string, content []byte, notify bool) {
 	s.fileSize = int64(len(content))
 	s.docSeq++
 	s.mu.Unlock()
+	s.notifyWatcher()
 
 	if notify {
 		s.TriggerEvent("reload")

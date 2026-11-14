@@ -20,7 +20,7 @@ const singleInstanceMutexName = `Local\GoMarkdownReader_SingleInstance_v1`
 type instanceRecord struct {
 	PID   int    `json:"pid"`
 	Port  int    `json:"port"`
-	Token string `json:"token"`
+	Nonce string `json:"nonce"`
 }
 
 func instanceRecordPath() string {
@@ -61,13 +61,13 @@ func acquireNamedMutex(name string) (windows.Handle, bool) {
 	return h, true
 }
 
-func writeInstanceRecord(port int, token string) {
+func writeInstanceRecord(port int, nonce string) {
 	p := instanceRecordPath()
 	_ = os.MkdirAll(filepath.Dir(p), 0755)
 	rec := instanceRecord{
 		PID:   os.Getpid(),
 		Port:  port,
-		Token: token,
+		Nonce: nonce,
 	}
 	data, err := json.Marshal(rec)
 	if err != nil {
@@ -102,13 +102,12 @@ func activateExistingInstance(docPath string, timeout time.Duration) bool {
 		data, err := os.ReadFile(p)
 		if err == nil {
 			var rec instanceRecord
-			if json.Unmarshal(data, &rec) == nil && rec.PID != os.Getpid() && rec.Port > 0 && rec.Token != "" {
+			if json.Unmarshal(data, &rec) == nil && rec.PID != os.Getpid() && rec.Port > 0 && rec.Nonce != "" {
 				if isPIDAlive(rec.PID) {
-					url := fmt.Sprintf("http://127.0.0.1:%d/api/activate", rec.Port)
+					url := fmt.Sprintf("http://127.0.0.1:%d/%s/activate", rec.Port, rec.Nonce)
 					req, reqErr := http.NewRequest(http.MethodPost, url, bytes.NewReader(payloadBytes))
 					if reqErr == nil {
 						req.Header.Set("Content-Type", "application/json")
-						req.Header.Set("X-Auth-Token", rec.Token)
 						resp, doErr := client.Do(req)
 						if doErr == nil {
 							_ = resp.Body.Close()

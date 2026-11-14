@@ -8,20 +8,51 @@ let editorDebounceTimer = null;
 let isEditorOpen = false;
 let isEditorDirty = false;
 let lightboxZoom = 1;
-let loadAbortController = null;
 let loadGeneration = 0;
-let previewAbortController = null;
 let previewGeneration = 0;
 let autoWideModeApplied = false;
 
-const SESSION_TOKEN = new URLSearchParams(window.location.search).get("token") || "";
+let rpcSeq = 0;
+const rpcPending = new Map();
 
-function apiFetch(url, options = {}) {
-  const headers = new Headers(options.headers || {});
-  if (SESSION_TOKEN) {
-    headers.set("X-Auth-Token", SESSION_TOKEN);
+window.__rpcResolve = function (id, payload) {
+  const pending = rpcPending.get(id);
+  if (!pending) return;
+  rpcPending.delete(id);
+  pending.resolve(payload);
+};
+
+window.__rpcReject = function (id, message) {
+  const pending = rpcPending.get(id);
+  if (!pending) return;
+  rpcPending.delete(id);
+  pending.reject(new Error(message || "操作失败"));
+};
+
+function rpcCall(method, params = {}) {
+  if (typeof window.__appCall !== "function") {
+    return Promise.reject(new Error("WebView2 IPC 桥尚未就绪"));
   }
-  return fetch(url, { ...options, headers });
+  return new Promise((resolve, reject) => {
+    const id = ++rpcSeq;
+    rpcPending.set(id, { resolve, reject });
+    try {
+      window.__appCall(id, method, JSON.stringify(params));
+    } catch (err) {
+      rpcPending.delete(id);
+      reject(err);
+    }
+  });
+}
+
+function arrayBufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  const chunkSize = 0x8000;
+  const chunks = [];
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    chunks.push(String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize)));
+  }
+  return btoa(chunks.join(""));
 }
 
 const THEMES = [
@@ -326,15 +357,10 @@ async function loadFile(preserveScroll = false) {
     lastScrollPos = 0;
   }
 
-  if (loadAbortController) {
-    loadAbortController.abort();
-  }
-  loadAbortController = new AbortController();
   const myGen = ++loadGeneration;
 
   try {
-    const res = await apiFetch("/api/file", { signal: loadAbortController.signal });
-    const data = await res.json();
+    const data = await rpcCall("doc.get");
     if (myGen !== loadGeneration) return;
 
     currentDocData = data;
@@ -392,9 +418,7 @@ async function loadFile(preserveScroll = false) {
     const isSameDiskFile = !prevIsMemory && !data.isMemory && prevPath !== "" && prevPath === data.filepath;
     if (!isSameDiskFile) {
       clearTimeout(editorDebounceTimer);
-      if (previewAbortController) {
-        previewAbortController.abort();
-      }
+      previewGeneration++;
       isEditorDirty = false;
     }
 
@@ -494,8 +518,7 @@ async function loadSiblingFiles() {
   if (!fileListEl) return;
 
   try {
-    const res = await apiFetch("/api/siblings");
-    const data = await res.json();
+    const data = await rpcCall("doc.siblings");
     const files = data.files || [];
     if (countEl) countEl.textContent = `${files.length}`;
 
@@ -618,41 +641,25 @@ function handleEditorInput() {
 
   editorDebounceTimer = setTimeout(async () => {
     const content = document.getElementById("editor-textarea").value;
-    if (previewAbortController) {
-      previewAbortController.abort();
-    }
-    previewAbortController = new AbortController();
-
     try {
-      const res = await apiFetch("/api/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-        signal: previewAbortController.signal
-      });
+      const data = await rpcCall("doc.preview", { content });
       if (myGen !== previewGeneration) return;
       if (currentDocData && (currentDocData.docSeq !== expectedDocSeq || currentDocData.filepath !== expectedPath)) {
         return;
       }
 
-      if (res.ok) {
-        const data = await res.json();
-        if (myGen !== previewGeneration) return;
-        if (!currentDocData) {
-          currentDocData = { hasFile: true, filename: "未命名草稿.md", filepath: "(本地草稿)" };
-        }
-        currentDocData.rawContent = content;
-        currentDocData.html = data.html;
-        currentDocData.wordCount = data.wordCount;
-        renderDocumentHTML(data.html, data.toc);
-
-        const words = data.wordCount || 0;
-        const estMinutes = Math.max(1, Math.round(words / 350));
-        document.getElementById("doc-meta").textContent = `✏️ 编辑中 · ${words.toLocaleString()} 字 · 约 ${estMinutes} 分钟`;
+      if (!currentDocData) {
+        currentDocData = { hasFile: true, filename: "未命名草稿.md", filepath: "(本地草稿)" };
       }
-    } catch (e) {
-      if (e && e.name === "AbortError") return;
-    }
+      currentDocData.rawContent = content;
+      currentDocData.html = data.html;
+      currentDocData.wordCount = data.wordCount;
+      renderDocumentHTML(data.html, data.toc);
+
+      const words = data.wordCount || 0;
+      const estMinutes = Math.max(1, Math.round(words / 350));
+      document.getElementById("doc-meta").textContent = `✏️ 编辑中 · ${words.toLocaleString()} 字 · 约 ${estMinutes} 分钟`;
+    } catch (e) {}
   }, 160);
 }
 
@@ -683,17 +690,7 @@ async function autoFormatDocument() {
   if (fmtBtn) fmtBtn.disabled = true;
 
   try {
-    const res = await apiFetch("/api/format", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: rawSource })
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      showToast("❌ " + (data.error || "自动排版失败"));
-      return;
-    }
-
+    const data = await rpcCall("doc.format", { content: rawSource });
     if (!data.changed) {
       showToast("✓ 当前文档排版已很规整，无需调整");
       return;
@@ -751,12 +748,7 @@ async function saveCurrentContent() {
   }
 
   try {
-    const res = await apiFetch("/api/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content })
-    });
-    const data = await res.json();
+    const data = await rpcCall("doc.save", { mode: "save", content });
     if (data.saved) {
       isEditorDirty = false;
       showToast(`✓ 已成功保存至: ${data.path}`);
@@ -780,12 +772,7 @@ async function saveAsMarkdown() {
 
   const fname = currentDocData && currentDocData.filename ? currentDocData.filename : "document.md";
   try {
-    const res = await apiFetch("/api/save-as", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, filename: fname })
-    });
-    const data = await res.json();
+    const data = await rpcCall("doc.save", { mode: "saveAs", content, filename: fname });
     if (data.saved) {
       showToast(`✓ 已成功另存为: ${data.path}`);
     } else if (data.error) {
@@ -1076,31 +1063,22 @@ function initDragDrop() {
 
     if (filePath) {
       try {
-        const res = await apiFetch("/api/open-path", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path: filePath })
-        });
-        if (res.ok) {
-          showToast(`✓ 已加载: ${file.name}`);
-          loadFile(false);
-          return;
-        }
+        await rpcCall("doc.open", { mode: "path", path: filePath });
+        showToast(`✓ 已加载: ${file.name}`);
+        loadFile(false);
+        return;
       } catch (err) {}
     }
 
     try {
       const buf = await file.arrayBuffer();
-      const res = await apiFetch(`/api/open-binary?name=${encodeURIComponent(file.name)}`, {
-        method: "POST",
-        body: buf
+      await rpcCall("doc.open", {
+        mode: "binary",
+        name: file.name,
+        dataBase64: arrayBufferToBase64(buf)
       });
-      if (res.ok) {
-        showToast(`✓ 已导入并解析: ${file.name}`);
-        loadFile(false);
-      } else {
-        showToast("❌ 解析文档失败，请检查文件格式");
-      }
+      showToast(`✓ 已导入并解析: ${file.name}`);
+      loadFile(false);
     } catch (err) {
       showToast("❌ 读取拖拽文件失败: " + err.message);
     }
@@ -1146,7 +1124,7 @@ async function exportStandaloneHTML() {
   }
 
   try {
-    const cssRes = await fetch("/assets/style.css");
+    const cssRes = await fetch("assets/style.css");
     const cssText = await cssRes.text();
     const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
 
@@ -1171,36 +1149,17 @@ ${cssText}
 </body>
 </html>`;
 
-    const saveRes = await apiFetch("/api/save-html", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        html: standaloneHTML,
-        filename: currentDocData.filename || "document"
-      })
+    const saveData = await rpcCall("doc.save", {
+      mode: "saveHtml",
+      html: standaloneHTML,
+      filename: currentDocData.filename || "document"
     });
-    if (saveRes.ok) {
-      const saveData = await saveRes.json();
-      if (saveData.saved) {
-        showToast(`✓ 已导出独立离线 HTML 文件: ${saveData.path}`);
-        return;
-      }
-      if (saveData.error) {
-        showToast("❌ 导出 HTML 失败: " + saveData.error);
-      }
-      return;
+    if (saveData.saved) {
+      showToast(`✓ 已导出独立离线 HTML 文件: ${saveData.path}`);
+    } else if (saveData.error) {
+      showToast("❌ 导出 HTML 失败: " + saveData.error);
     }
-
-    const blob = new Blob([standaloneHTML], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${currentDocData.filename || "document"}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast("✓ 已生成独立离线 HTML 文件");
+    return;
   } catch (err) {
     showToast("❌ 导出 HTML 失败: " + err.message);
   }
@@ -1394,16 +1353,8 @@ async function openRecentPath(path) {
   closeAllDropdowns();
   if (!confirmDiscardEditorChanges()) return;
   try {
-    const res = await apiFetch("/api/open-path", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path })
-    });
-    if (res.ok) {
-      loadFile(false);
-    } else {
-      showToast("❌ 文件不存在或无法访问");
-    }
+    await rpcCall("doc.open", { mode: "path", path });
+    loadFile(false);
   } catch (err) {
     showToast("❌ 无法打开该文件: " + err.message);
   }
@@ -1412,8 +1363,7 @@ async function openRecentPath(path) {
 async function openFileDialog() {
   if (!confirmDiscardEditorChanges()) return;
   try {
-    const res = await apiFetch("/api/open-dialog", { method: "POST" });
-    const data = await res.json();
+    const data = await rpcCall("doc.open", { mode: "dialog" });
     if (data.opened) {
       loadFile(false);
     } else if (data.error) {
@@ -1477,16 +1427,7 @@ async function toggleNotepadReplacement() {
   const wantReplace = !currentNotepadReplaced;
   if (btn) btn.disabled = true;
   try {
-    const res = await apiFetch("/api/assoc/notepad", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ replace: wantReplace })
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      showToast("❌ " + (data.error || "操作系统记事本设置失败"));
-      return;
-    }
+    const data = await rpcCall("assoc.notepad.set", { replace: wantReplace });
     renderNotepadStatus(data.status);
     showToast(wantReplace ? "✓ 已将系统记事本替换为 Go Markdown Reader" : "✓ 已恢复 Windows 系统默认记事本");
   } catch (err) {
@@ -1503,23 +1444,20 @@ async function showAssocModal() {
   if (!modal || !container) return;
 
   try {
-    const [res, trayRes, notepadRes] = await Promise.all([
-      apiFetch("/api/assoc"),
-      apiFetch("/api/tray/prefs"),
-      apiFetch("/api/assoc/notepad")
+    const [data, trayData, npData] = await Promise.all([
+      rpcCall("assoc.get"),
+      rpcCall("tray.get"),
+      rpcCall("assoc.notepad.get")
     ]);
-    const data = await res.json();
     currentAssocCatalog = data.extensions || [];
     ctxCheckbox.checked = !!data.contextMenu;
 
     const minTrayCb = document.getElementById("pref-minimize-tray");
-    if (minTrayCb && trayRes.ok) {
-      const trayData = await trayRes.json();
+    if (minTrayCb && trayData) {
       minTrayCb.checked = !!trayData.minimizeToTray;
     }
 
-    if (notepadRes.ok) {
-      const npData = await notepadRes.json();
+    if (npData && npData.status) {
       renderNotepadStatus(npData.status);
     }
 
@@ -1566,24 +1504,12 @@ async function saveAssocSettings() {
   const minimizeToTray = minTrayCb ? minTrayCb.checked : true;
 
   try {
-    const [res] = await Promise.all([
-      apiFetch("/api/assoc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ extensions: selectedExts, contextMenu })
-      }),
-      apiFetch("/api/tray/prefs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ minimizeToTray })
-      })
+    await Promise.all([
+      rpcCall("assoc.apply", { extensions: selectedExts, contextMenu }),
+      rpcCall("tray.set", { minimizeToTray })
     ]);
-    if (res.ok) {
-      closeAssocModal();
-      showToast(`✓ 已保存设置并应用 ${selectedExts.length} 项文件格式关联！`);
-    } else {
-      showToast("❌ 保存关联设置失败");
-    }
+    closeAssocModal();
+    showToast(`✓ 已保存设置并应用 ${selectedExts.length} 项文件格式关联！`);
   } catch (err) {
     showToast("❌ 关联设置异常: " + err.message);
   }
@@ -1595,11 +1521,8 @@ async function showOTAModal() {
   if (!modal) return;
 
   try {
-    const res = await apiFetch("/api/ota/config");
-    if (res.ok) {
-      const cfg = await res.json();
-      applyOTAConfigToUI(cfg);
-    }
+    const cfg = await rpcCall("ota.config.get");
+    applyOTAConfigToUI(cfg);
   } catch (e) {}
   modal.classList.add("show");
 }
@@ -1621,21 +1544,12 @@ async function saveOTAPrerelease() {
   const preEl = document.getElementById("ota-prerelease");
   const includePrerelease = !!(preEl && preEl.checked);
   try {
-    const res = await apiFetch("/api/ota/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        repo: "",
-        token: "",
-        clearToken: false,
-        includePrerelease
-      })
+    const data = await rpcCall("ota.config.save", {
+      repo: "",
+      token: "",
+      clearToken: false,
+      includePrerelease
     });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      showToast("❌ " + (data.error || "保存更新偏好失败"));
-      return false;
-    }
     applyOTAConfigToUI(data.config);
     return true;
   } catch (err) {
@@ -1662,17 +1576,8 @@ async function checkOTAUpdate() {
   applyBtn.style.display = "none";
 
   try {
-    const res = await apiFetch("/api/ota/check", { method: "POST" });
-    const data = await res.json();
+    const data = await rpcCall("ota.check");
     resultBox.style.display = "block";
-
-    if (!res.ok || !data.ok) {
-      statusLine.textContent = "❌ 检查失败: " + (data.error || "请求异常");
-      statusLine.style.color = "#ef4444";
-      notesEl.style.display = "none";
-      assetInfoEl.textContent = "";
-      return;
-    }
 
     const r = data.result;
     notesEl.style.display = r.releaseNotes ? "block" : "none";
@@ -1696,8 +1601,10 @@ async function checkOTAUpdate() {
     }
   } catch (err) {
     resultBox.style.display = "block";
-    statusLine.textContent = "❌ 网络异常: " + err.message;
+    statusLine.textContent = "❌ 检查失败: " + err.message;
     statusLine.style.color = "#ef4444";
+    notesEl.style.display = "none";
+    assetInfoEl.textContent = "";
   } finally {
     btn.disabled = false;
     btn.textContent = "🔍 检查最新版本";
@@ -1712,12 +1619,7 @@ async function downloadOTAUpdate() {
   dlBtn.disabled = true;
   dlBtn.textContent = "⏳ 正在下载与校验...";
   try {
-    const res = await apiFetch("/api/ota/download", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      showToast("❌ " + (data.error || "下载更新包失败"));
-      return;
-    }
+    const data = await rpcCall("ota.download");
     const st = data.staged;
     const verifyText = st.verifiedSha256 ? "SHA-256 校验通过 ✓" : "已完成下载 (远端未提供摘要)";
     assetInfoEl.textContent = `就绪: ${st.assetName} · ${verifyText}`;
@@ -1737,13 +1639,7 @@ async function applyOTAUpdate() {
   applyBtn.disabled = true;
   applyBtn.textContent = "⏳ 正在替换并重启...";
   try {
-    const res = await apiFetch("/api/ota/apply", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      showToast("❌ " + (data.error || "应用更新失败"));
-      applyBtn.disabled = false;
-      applyBtn.textContent = "🚀 立即安装并重启";
-    }
+    await rpcCall("ota.apply");
   } catch (err) {
     showToast("❌ 应用更新异常: " + err.message);
     applyBtn.disabled = false;
@@ -1751,7 +1647,7 @@ async function applyOTAUpdate() {
   }
 }
 
-// Sidebar, Wide Mode, Theme & Font Size Controls (persisted via /api/prefs)
+// Sidebar, Wide Mode, Theme & Font Size Controls (persisted via RPC)
 let uiPrefsCache = {
   theme: "light",
   fontSize: 16,
@@ -1762,21 +1658,14 @@ let uiPrefsCache = {
 
 async function persistUIPrefs(patch) {
   try {
-    await apiFetch("/api/prefs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch)
-    });
+    await rpcCall("prefs.update", patch);
   } catch (e) {}
 }
 
 async function initReadingPrefs() {
   try {
-    const res = await apiFetch("/api/prefs");
-    if (res.ok) {
-      const data = await res.json();
-      if (data) uiPrefsCache = { ...uiPrefsCache, ...data };
-    }
+    const data = await rpcCall("prefs.get");
+    if (data) uiPrefsCache = { ...uiPrefsCache, ...data };
   } catch (e) {}
 
   setTheme(uiPrefsCache.theme || "light", false);
@@ -1857,22 +1746,18 @@ function adjustFontSize(delta) {
   persistUIPrefs({ fontSize: currentFontSize });
 }
 
-// Live file watcher via SSE
-function initWatcher() {
-  try {
-    const watchUrl = SESSION_TOKEN ? `/api/watch?token=${encodeURIComponent(SESSION_TOKEN)}` : "/api/watch";
-    const evtSource = new EventSource(watchUrl);
-    evtSource.onmessage = (event) => {
-      if (event.data === "reload") {
-        loadFile(true);
-      } else if (event.data === "open-doc") {
-        loadFile(false);
-      } else if (event.data === "open-ota") {
-        showOTAModal();
-      }
-    };
-  } catch (e) {}
-}
+// Backend push event receiver (delivered via WebView2 Eval instead of HTTP SSE)
+window.__onBackendEvent = function (event) {
+  if (event === "reload") {
+    loadFile(true);
+  } else if (event === "open-doc") {
+    loadFile(false);
+  } else if (event === "open-ota") {
+    showOTAModal();
+  }
+};
+
+function initWatcher() {}
 
 // Keyboard shortcuts
 function initShortcuts() {

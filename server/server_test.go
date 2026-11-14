@@ -2,7 +2,9 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -23,67 +25,7 @@ func newTestServer(t *testing.T, initialFile string) *Server {
 	return srv
 }
 
-func TestAuthTokenEnforcementAndCookie(t *testing.T) {
-	dir := t.TempDir()
-	mdPath := filepath.Join(dir, "doc.md")
-	if err := os.WriteFile(mdPath, []byte("# Hello"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	srv := newTestServer(t, mdPath)
-	mux := srv.buildMux()
-
-	// Unauthenticated API call must fail with 401
-	reqUnauth := httptest.NewRequest(http.MethodGet, "/api/file", nil)
-	recUnauth := httptest.NewRecorder()
-	mux.ServeHTTP(recUnauth, reqUnauth)
-	if recUnauth.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for unauthenticated /api/file, got %d", recUnauth.Code)
-	}
-
-	// Authenticated via header succeeds
-	reqHdr := httptest.NewRequest(http.MethodGet, "/api/file", nil)
-	reqHdr.Header.Set("X-Auth-Token", srv.Token())
-	recHdr := httptest.NewRecorder()
-	mux.ServeHTTP(recHdr, reqHdr)
-	if recHdr.Code != http.StatusOK {
-		t.Fatalf("expected 200 with X-Auth-Token, got %d", recHdr.Code)
-	}
-
-	// Index rejects missing token with 403 and sets HttpOnly cookie on valid token
-	reqBadIdx := httptest.NewRequest(http.MethodGet, "/", nil)
-	recBadIdx := httptest.NewRecorder()
-	mux.ServeHTTP(recBadIdx, reqBadIdx)
-	if recBadIdx.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 on index without token, got %d", recBadIdx.Code)
-	}
-
-	reqGoodIdx := httptest.NewRequest(http.MethodGet, "/?token="+srv.Token(), nil)
-	recGoodIdx := httptest.NewRecorder()
-	mux.ServeHTTP(recGoodIdx, reqGoodIdx)
-	cookies := recGoodIdx.Result().Cookies()
-	found := false
-	for _, c := range cookies {
-		if c.Name == srv.cookieName() && c.Value == srv.Token() && c.HttpOnly {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected HttpOnly %s cookie to be set on valid index request", srv.cookieName())
-	}
-
-	// Stale cookie from previous session/port must NOT block valid query token navigation
-	reqStaleCookie := httptest.NewRequest(http.MethodGet, "/?token="+srv.Token(), nil)
-	reqStaleCookie.AddCookie(&http.Cookie{Name: "gomd_token", Value: "stale-old-token"})
-	reqStaleCookie.AddCookie(&http.Cookie{Name: srv.cookieName(), Value: "stale-port-token"})
-	recStaleCookie := httptest.NewRecorder()
-	mux.ServeHTTP(recStaleCookie, reqStaleCookie)
-	if recStaleCookie.Code == http.StatusForbidden {
-		t.Fatalf("stale cookie unexpectedly caused 403 on valid ?token= navigation")
-	}
-}
-
-func TestMediaTraversalAndSubdir(t *testing.T) {
+func TestNonceIsolationAndMediaTraversal(t *testing.T) {
 	dir := t.TempDir()
 	sub := filepath.Join(dir, "assets")
 	if err := os.MkdirAll(sub, 0755); err != nil {
@@ -94,16 +36,31 @@ func TestMediaTraversalAndSubdir(t *testing.T) {
 		t.Fatal(err)
 	}
 	mdPath := filepath.Join(dir, "doc.md")
-	if err := os.WriteFile(mdPath, []byte("# Img"), 0644); err != nil {
+	if err := os.WriteFile(mdPath, []byte("# Img\n\n![p](assets/pic.png)"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	srv := newTestServer(t, mdPath)
 	mux := srv.buildMux()
 
-	// Valid subdir asset
-	reqOK := httptest.NewRequest(http.MethodGet, "/media/assets/pic.png", nil)
-	reqOK.Header.Set("X-Auth-Token", srv.Token())
+	// Rendered HTML must use relative "media/..." under /<nonce>/
+	doc := srv.GetFile()
+	if !strings.Contains(doc.HTML, `src="media/assets/pic.png"`) {
+		t.Fatalf("expected relative media/ path in parsed HTML, got:\n%s", doc.HTML)
+	}
+
+	// Root or mismatched nonce paths must return 404 (no cookie ceremony needed)
+	for _, badPath := range []string{"/", "/wrongnonce/", "/media/assets/pic.png", "/wrongnonce/media/assets/pic.png"} {
+		req := httptest.NewRequest(http.MethodGet, badPath, nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404 for %s, got %d", badPath, rec.Code)
+		}
+	}
+
+	// Valid nonce-scoped subdir asset succeeds without cookies or auth headers
+	reqOK := httptest.NewRequest(http.MethodGet, "/"+srv.Nonce()+"/media/assets/pic.png", nil)
 	recOK := httptest.NewRecorder()
 	mux.ServeHTTP(recOK, reqOK)
 	if recOK.Code != http.StatusOK || recOK.Body.String() != "PNGDATA" {
@@ -111,17 +68,18 @@ func TestMediaTraversalAndSubdir(t *testing.T) {
 	}
 
 	// Path traversal & drive-letter paths blocked cleanly in handleMedia
-	for _, badURL := range []string{"/media/../secret.txt", "/media/assets/../../secret.txt", "/media/C:/Windows/win.ini", `/media/..\secret.txt`} {
-		reqBad := httptest.NewRequest(http.MethodGet, badURL, nil)
+	baseMedia := "/" + srv.Nonce() + "/media/"
+	for _, badRel := range []string{"../secret.txt", "assets/../../secret.txt", "C:/Windows/win.ini", `..\secret.txt`} {
+		reqBad := httptest.NewRequest(http.MethodGet, baseMedia+badRel, nil)
 		recBad := httptest.NewRecorder()
 		srv.handleMedia(recBad, reqBad)
 		if recBad.Code != http.StatusForbidden {
-			t.Fatalf("expected 403 for %s, got %d", badURL, recBad.Code)
+			t.Fatalf("expected 403 for %s, got %d", badRel, recBad.Code)
 		}
 	}
 }
 
-func TestOpenPathAndSaveDoNotEchoSSEAndIncrementDocSeq(t *testing.T) {
+func TestUnifiedOpenSaveDoNotEchoEventsAndIncrementDocSeq(t *testing.T) {
 	dir := t.TempDir()
 	f1 := filepath.Join(dir, "one.md")
 	f2 := filepath.Join(dir, "two.md")
@@ -129,126 +87,95 @@ func TestOpenPathAndSaveDoNotEchoSSEAndIncrementDocSeq(t *testing.T) {
 	_ = os.WriteFile(f2, []byte("# Two"), 0644)
 
 	srv := newTestServer(t, f1)
-	mux := srv.buildMux()
+	events := make(chan string, 5)
+	srv.SetEventSink(func(ev string) {
+		events <- ev
+	})
 
-	sseCh := make(chan string, 5)
-	srv.clientsMu.Lock()
-	srv.clients[sseCh] = struct{}{}
-	srv.clientsMu.Unlock()
-
-	// Open second file via /api/open-path
-	body, _ := json.Marshal(map[string]string{"path": f2})
-	reqOpen := httptest.NewRequest(http.MethodPost, "/api/open-path", bytes.NewReader(body))
-	reqOpen.Header.Set("X-Auth-Token", srv.Token())
-	recOpen := httptest.NewRecorder()
-	mux.ServeHTTP(recOpen, reqOpen)
-	if recOpen.Code != http.StatusOK {
-		t.Fatalf("open-path failed: %d", recOpen.Code)
+	// Unified doc.open (mode: path)
+	openRaw, _ := json.Marshal(OpenRequest{Mode: "path", Path: f2})
+	if _, err := srv.HandleRPC(context.Background(), "doc.open", openRaw); err != nil {
+		t.Fatalf("doc.open(path) failed: %v", err)
 	}
 
-	// Save via /api/save
-	saveBody, _ := json.Marshal(map[string]string{"content": "# Two Updated"})
-	reqSave := httptest.NewRequest(http.MethodPost, "/api/save", bytes.NewReader(saveBody))
-	reqSave.Header.Set("X-Auth-Token", srv.Token())
-	recSave := httptest.NewRecorder()
-	mux.ServeHTTP(recSave, reqSave)
-	if recSave.Code != http.StatusOK {
-		t.Fatalf("save failed: %d", recSave.Code)
+	// Unified doc.save (mode: save)
+	saveRaw, _ := json.Marshal(SaveRequest{Mode: "save", Content: "# Two Updated"})
+	if _, err := srv.HandleRPC(context.Background(), "doc.save", saveRaw); err != nil {
+		t.Fatalf("doc.save(save) failed: %v", err)
 	}
 
 	select {
-	case msg := <-sseCh:
-		t.Fatalf("expected UI-triggered open/save not to echo SSE reload, got %q", msg)
+	case ev := <-events:
+		t.Fatalf("expected UI-triggered open/save not to echo reload event, got %q", ev)
 	case <-time.After(50 * time.Millisecond):
 	}
 
-	reqFile := httptest.NewRequest(http.MethodGet, "/api/file", nil)
-	reqFile.Header.Set("X-Auth-Token", srv.Token())
-	recFile := httptest.NewRecorder()
-	mux.ServeHTTP(recFile, reqFile)
-	if !strings.Contains(recFile.Body.String(), `"docSeq":3`) {
-		t.Fatalf("expected docSeq=3 after initial+open+save, got %s", recFile.Body.String())
+	doc := srv.GetFile()
+	if doc.DocSeq != 3 || doc.RawContent != "# Two Updated" {
+		t.Fatalf("expected docSeq=3 and updated content, got docSeq=%d raw=%q", doc.DocSeq, doc.RawContent)
+	}
+
+	// Unified doc.open (mode: content)
+	contentRaw, _ := json.Marshal(OpenRequest{Mode: "content", Name: "mem.md", Content: "# Mem"})
+	if _, err := srv.HandleRPC(context.Background(), "doc.open", contentRaw); err != nil {
+		t.Fatalf("doc.open(content) failed: %v", err)
+	}
+	if got := srv.GetFile(); !got.IsMemory || got.Filename != "mem.md" {
+		t.Fatalf("unexpected memory document after doc.open(content): %+v", got)
+	}
+
+	// Unified doc.open (mode: binary)
+	binRaw, _ := json.Marshal(OpenRequest{
+		Mode:       "binary",
+		Name:       "raw.txt",
+		DataBase64: base64.StdEncoding.EncodeToString([]byte("hello binary")),
+	})
+	if _, err := srv.HandleRPC(context.Background(), "doc.open", binRaw); err != nil {
+		t.Fatalf("doc.open(binary) failed: %v", err)
+	}
+	if got := srv.GetFile(); !got.IsMemory || !strings.Contains(got.RawContent, "hello binary") {
+		t.Fatalf("unexpected memory document after doc.open(binary): %+v", got)
 	}
 }
 
-func TestTrayPrefsAndOTAConfigEndpoints(t *testing.T) {
-	srv := newTestServer(t, "")
-	minFlag := true
-	srv.SetTrayHandlers(func() bool { return minFlag }, func(v bool) { minFlag = v }, nil)
-	mux := srv.buildMux()
-
-	// Must require auth
-	reqNoAuth := httptest.NewRequest(http.MethodGet, "/api/ota/config", nil)
-	recNoAuth := httptest.NewRecorder()
-	mux.ServeHTTP(recNoAuth, reqNoAuth)
-	if recNoAuth.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for unauthenticated /api/ota/config, got %d", recNoAuth.Code)
-	}
-
-	// Toggle tray preference via POST
-	postBody := bytes.NewBufferString(`{"minimizeToTray":false}`)
-	reqPost := httptest.NewRequest(http.MethodPost, "/api/tray/prefs", postBody)
-	reqPost.Header.Set("X-Auth-Token", srv.Token())
-	recPost := httptest.NewRecorder()
-	mux.ServeHTTP(recPost, reqPost)
-	if recPost.Code != http.StatusOK || minFlag {
-		t.Fatalf("expected minimizeToTray updated to false, code=%d minFlag=%v", recPost.Code, minFlag)
-	}
-}
-
-func TestAssocNotepadEndpoint(t *testing.T) {
-	srv := newTestServer(t, "")
-
-	mux := srv.buildMux()
-
-	reqNoAuth := httptest.NewRequest(http.MethodGet, "/api/assoc/notepad", nil)
-	recNoAuth := httptest.NewRecorder()
-	mux.ServeHTTP(recNoAuth, reqNoAuth)
-	if recNoAuth.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for unauthenticated /api/assoc/notepad, got %d", recNoAuth.Code)
-	}
-
-	reqGet := httptest.NewRequest(http.MethodGet, "/api/assoc/notepad", nil)
-	reqGet.Header.Set("X-Auth-Token", srv.Token())
-	recGet := httptest.NewRecorder()
-	mux.ServeHTTP(recGet, reqGet)
-	if recGet.Code != http.StatusOK {
-		t.Fatalf("expected 200 for authenticated GET /api/assoc/notepad, got %d", recGet.Code)
-	}
-
-	var payload struct {
-		OK     bool `json:"ok"`
-		Status struct {
-			Replaced bool `json:"replaced"`
-		} `json:"status"`
-	}
-	if err := json.NewDecoder(recGet.Body).Decode(&payload); err != nil || !payload.OK {
-		t.Fatalf("unexpected /api/assoc/notepad payload: ok=%v err=%v", payload.OK, err)
-	}
-}
-
-func TestUIPrefsEndpoint(t *testing.T) {
+func TestTypedTrayUIPrefsAndNotepadRPC(t *testing.T) {
 	srv := newTestServer(t, "")
 	prefsFile := filepath.Join(t.TempDir(), "ui_prefs.json")
 	srv.uiPrefs = newUIPrefsStore(prefsFile)
-	mux := srv.buildMux()
 
-	postBody := bytes.NewBufferString(`{"theme":"dark","fontSize":18,"sidebarHidden":true,"scrollPath":"C:\\docs\\a.md","scrollTop":420}`)
-	reqPost := httptest.NewRequest(http.MethodPost, "/api/prefs", postBody)
-	reqPost.Header.Set("X-Auth-Token", srv.Token())
-	recPost := httptest.NewRecorder()
-	mux.ServeHTTP(recPost, reqPost)
-	if recPost.Code != http.StatusOK {
-		t.Fatalf("POST /api/prefs failed: %d", recPost.Code)
+	minFlag := true
+	srv.SetTrayHandlers(func() bool { return minFlag }, func(v bool) { minFlag = v }, nil)
+
+	ctx := context.Background()
+
+	// Tray get & set
+	trayRaw, _ := json.Marshal(TrayPrefsState{MinimizeToTray: false})
+	if _, err := srv.HandleRPC(ctx, "tray.set", trayRaw); err != nil || minFlag {
+		t.Fatalf("expected tray.set to update minFlag=false, err=%v minFlag=%v", err, minFlag)
 	}
 
+	// UI prefs patch + persistence check
+	patchBody := json.RawMessage(`{"theme":"dark","fontSize":18,"sidebarHidden":true,"scrollPath":"C:\\docs\\a.md","scrollTop":420}`)
+	if _, err := srv.HandleRPC(ctx, "prefs.update", patchBody); err != nil {
+		t.Fatalf("prefs.update failed: %v", err)
+	}
 	reloaded := newUIPrefsStore(prefsFile).get()
 	if reloaded.Theme != "dark" || reloaded.FontSize != 18 || !reloaded.SidebarHidden || reloaded.ScrollPositions[`C:\docs\a.md`] != 420 {
 		t.Fatalf("unexpected reloaded UIPrefs: %+v", reloaded)
 	}
+
+	// Notepad status RPC
+	resNP, err := srv.HandleRPC(ctx, "assoc.notepad.get", nil)
+	if err != nil {
+		t.Fatalf("assoc.notepad.get failed: %v", err)
+	}
+	npResp, ok := resNP.(NotepadStatusResponse)
+	if !ok || !npResp.OK {
+		t.Fatalf("unexpected NotepadStatusResponse: %+v", resNP)
+	}
 }
 
-func TestActivateEndpoint(t *testing.T) {
+func TestActivateEndpointWithNonce(t *testing.T) {
 	dir := t.TempDir()
 	docPath := filepath.Join(dir, "activated.md")
 	_ = os.WriteFile(docPath, []byte("# Activated"), 0644)
@@ -256,16 +183,25 @@ func TestActivateEndpoint(t *testing.T) {
 	srv := newTestServer(t, "")
 	activated := false
 	srv.SetActivateHandler(func() { activated = true })
+
+	events := make(chan string, 4)
+	srv.SetEventSink(func(ev string) {
+		events <- ev
+	})
 	mux := srv.buildMux()
 
-	sseCh := make(chan string, 4)
-	srv.clientsMu.Lock()
-	srv.clients[sseCh] = struct{}{}
-	srv.clientsMu.Unlock()
-
 	body, _ := json.Marshal(map[string]string{"path": docPath})
-	req := httptest.NewRequest(http.MethodPost, "/api/activate", bytes.NewReader(body))
-	req.Header.Set("X-Auth-Token", srv.Token())
+
+	// Missing nonce rejected
+	reqBad := httptest.NewRequest(http.MethodPost, "/activate", bytes.NewReader(body))
+	recBad := httptest.NewRecorder()
+	mux.ServeHTTP(recBad, reqBad)
+	if recBad.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 without nonce prefix, got %d", recBad.Code)
+	}
+
+	// Valid nonce triggers activation + open-doc event
+	req := httptest.NewRequest(http.MethodPost, "/"+srv.Nonce()+"/activate", bytes.NewReader(body))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || !activated {
@@ -273,46 +209,28 @@ func TestActivateEndpoint(t *testing.T) {
 	}
 
 	select {
-	case ev := <-sseCh:
+	case ev := <-events:
 		if ev != "open-doc" {
-			t.Fatalf("expected open-doc SSE event, got %q", ev)
+			t.Fatalf("expected open-doc event, got %q", ev)
 		}
 	case <-time.After(100 * time.Millisecond):
-		t.Fatal("expected open-doc SSE event")
+		t.Fatal("expected open-doc event")
 	}
 }
 
-func TestFormatEndpoint(t *testing.T) {
+func TestFormatRPC(t *testing.T) {
 	srv := newTestServer(t, "")
-	mux := srv.buildMux()
-
-	reqNoAuth := httptest.NewRequest(http.MethodPost, "/api/format", bytes.NewBufferString(`{"content":"#标题"}`))
-	recNoAuth := httptest.NewRecorder()
-	mux.ServeHTTP(recNoAuth, reqNoAuth)
-	if recNoAuth.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for unauthenticated /api/format, got %d", recNoAuth.Code)
+	raw, _ := json.Marshal(ContentRequest{Content: "#标题\n测试Go语言"})
+	res, err := srv.HandleRPC(context.Background(), "doc.format", raw)
+	if err != nil {
+		t.Fatalf("doc.format failed: %v", err)
 	}
-
-	body, _ := json.Marshal(map[string]string{"content": "#标题\n测试Go语言"})
-	req := httptest.NewRequest(http.MethodPost, "/api/format", bytes.NewReader(body))
-	req.Header.Set("X-Auth-Token", srv.Token())
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for /api/format, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var resp struct {
-		OK      bool   `json:"ok"`
-		Content string `json:"content"`
-		Changed bool   `json:"changed"`
-		HTML    string `json:"html"`
-	}
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode /api/format response: %v", err)
+	resp, ok := res.(FormatResponse)
+	if !ok {
+		t.Fatalf("expected FormatResponse, got %T", res)
 	}
 	if !resp.OK || !resp.Changed || resp.Content != "# 标题\n\n测试 Go 语言\n" {
-		t.Fatalf("unexpected /api/format result: %+v", resp)
+		t.Fatalf("unexpected FormatResponse: %+v", resp)
 	}
 	if !strings.Contains(resp.HTML, "<h1") {
 		t.Fatalf("expected rendered heading HTML, got %q", resp.HTML)

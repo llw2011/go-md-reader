@@ -33,11 +33,24 @@ type ParseResult struct {
 
 // MarkdownParser encapsulates goldmark parser instance
 type MarkdownParser struct {
-	md goldmark.Markdown
+	md          goldmark.Markdown
+	mediaPrefix string
 }
 
 // NewMarkdownParser creates a parser with GFM, Chroma syntax highlighting, and auto IDs
 func NewMarkdownParser() *MarkdownParser {
+	return NewMarkdownParserWithMediaPrefix("/media/")
+}
+
+// NewMarkdownParserWithMediaPrefix creates a parser that rewrites relative image links using prefix.
+func NewMarkdownParserWithMediaPrefix(prefix string) *MarkdownParser {
+	cleanPrefix := strings.TrimSpace(prefix)
+	if cleanPrefix == "" {
+		cleanPrefix = "/media/"
+	} else if !strings.HasSuffix(cleanPrefix, "/") {
+		cleanPrefix += "/"
+	}
+
 	md := goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
@@ -53,7 +66,7 @@ func NewMarkdownParser() *MarkdownParser {
 			html.WithUnsafe(),
 		),
 	)
-	return &MarkdownParser{md: md}
+	return &MarkdownParser{md: md, mediaPrefix: cleanPrefix}
 }
 
 // extractNodeText recursively extracts plain text from an AST node
@@ -104,7 +117,7 @@ func (p *MarkdownParser) Parse(source []byte) (*ParseResult, error) {
 
 		case ast.KindImage:
 			img := n.(*ast.Image)
-			img.Destination = []byte(rewriteLocalMediaURL(string(img.Destination)))
+			img.Destination = []byte(rewriteLocalMediaURLWithPrefix(string(img.Destination), p.mediaPrefix))
 		}
 
 		return ast.WalkContinue, nil
@@ -191,13 +204,18 @@ func extractFrontmatter(source []byte) (string, []byte) {
 
 // rewriteLocalMediaURL converts relative local image paths into properly segment-escaped /media/ URLs.
 func rewriteLocalMediaURL(dest string) string {
+	return rewriteLocalMediaURLWithPrefix(dest, "/media/")
+}
+
+func rewriteLocalMediaURLWithPrefix(dest, prefix string) string {
 	lower := strings.ToLower(strings.TrimSpace(dest))
 	if lower == "" ||
 		strings.HasPrefix(lower, "http://") ||
 		strings.HasPrefix(lower, "https://") ||
 		strings.HasPrefix(lower, "data:") ||
 		strings.HasPrefix(lower, "//") ||
-		strings.HasPrefix(lower, "/media/") {
+		strings.HasPrefix(lower, "/media/") ||
+		strings.HasPrefix(lower, "media/") {
 		return dest
 	}
 
@@ -228,7 +246,7 @@ func rewriteLocalMediaURL(dest string) string {
 	if len(escapedSegs) == 0 {
 		return dest
 	}
-	return "/media/" + strings.Join(escapedSegs, "/") + suffix
+	return prefix + strings.Join(escapedSegs, "/") + suffix
 }
 
 // GenerateChromaCSS generates CSS definitions for Chroma syntax highlighting

@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -162,23 +161,4 @@ func (st *uiPrefsStore) saveLocked() error {
 		return err
 	}
 	return os.Rename(tmp, st.filePath)
-}
-
-func (s *Server) handleUIPrefs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if r.Method == http.MethodGet {
-		_ = json.NewEncoder(w).Encode(s.uiPrefs.get())
-		return
-	}
-	if r.Method == http.MethodPost {
-		var patch prefsPatch
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&patch); err != nil {
-			writeJSONError(w, http.StatusBadRequest, "无效的偏好设置数据")
-			return
-		}
-		updated := s.uiPrefs.applyPatch(patch)
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "prefs": updated})
-		return
-	}
-	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 }

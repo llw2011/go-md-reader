@@ -85,7 +85,7 @@ func main() {
 	}()
 
 	if isPrimary {
-		writeInstanceRecord(srv.Port(), srv.Token())
+		writeInstanceRecord(srv.Port(), srv.Nonce())
 		defer removeInstanceRecord(os.Getpid())
 	}
 
@@ -154,6 +154,10 @@ func main() {
 				w.Terminate()
 			})
 		})
+	}
+
+	if err := srv.BindWebView(w); err != nil {
+		log.Printf("绑定 WebView 通信桥失败: %v", err)
 	}
 
 	w.Navigate(srv.URL())

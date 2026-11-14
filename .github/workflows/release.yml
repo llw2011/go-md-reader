@@ -20,13 +20,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run static check and unit tests
-        shell: pwsh
-        run: |
-          go vet ./...
-          go test -count=1 ./...
-
-      - name: Build reader and installer with version ldflags
+      - name: Build reader and stage installer payload
         shell: pwsh
         env:
           TAG_NAME: ${{ github.ref_name }}
@@ -37,6 +31,19 @@ jobs:
           New-Item -ItemType Directory -Force -Path cmd/installer/payload | Out-Null
           Copy-Item go-md-reader.exe cmd/installer/payload/go-md-reader.exe -Force
           Copy-Item sample.md cmd/installer/payload/sample.md -Force
+
+      - name: Run static check and unit tests
+        shell: pwsh
+        run: |
+          go vet ./...
+          go test -count=1 ./...
+
+      - name: Build installer with version ldflags
+        shell: pwsh
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          $ldflags = "-H windowsgui -s -w -X go-md-reader/updater.CurrentVersion=$env:TAG_NAME"
           go build -ldflags="$ldflags" -o GoMarkdownReader-Setup.exe ./cmd/installer
 
       - name: Generate SHA-256 checksums

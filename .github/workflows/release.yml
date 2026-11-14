@@ -1,0 +1,59 @@
+name: Release Windows Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run static check and unit tests
+        shell: pwsh
+        run: |
+          go vet ./...
+          go test -count=1 ./...
+
+      - name: Build reader and installer with version ldflags
+        shell: pwsh
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          go run ./cmd/genicon
+          $ldflags = "-H windowsgui -s -w -X go-md-reader/updater.CurrentVersion=$env:TAG_NAME"
+          go build -ldflags="$ldflags" -o go-md-reader.exe .
+          New-Item -ItemType Directory -Force -Path cmd/installer/payload | Out-Null
+          Copy-Item go-md-reader.exe cmd/installer/payload/go-md-reader.exe -Force
+          Copy-Item sample.md cmd/installer/payload/sample.md -Force
+          go build -ldflags="$ldflags" -o GoMarkdownReader-Setup.exe ./cmd/installer
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $files = @("go-md-reader.exe", "GoMarkdownReader-Setup.exe")
+          $lines = foreach ($f in $files) {
+            $h = (Get-FileHash -Path $f -Algorithm SHA256).Hash.ToLower()
+            "$h  $f"
+          }
+          $lines | Set-Content -Path checksums.txt -Encoding ascii
+
+      - name: Upload GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            go-md-reader.exe
+            GoMarkdownReader-Setup.exe
+            checksums.txt

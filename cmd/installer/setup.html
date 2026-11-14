@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Go Markdown Reader 安装向导</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+    .banner {
+      background: linear-gradient(135deg, #1e40af, #3b82f6);
+      color: #fff;
+      padding: 20px 26px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 10px rgba(37, 99, 235, 0.18);
+    }
+    .banner-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo-box {
+      width: 46px;
+      height: 46px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -1px;
+    }
+    .banner-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .banner-sub {
+      font-size: 12px;
+      opacity: 0.9;
+      margin-top: 3px;
+    }
+    .badge {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .main-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .section-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dir-row {
+      display: flex;
+      gap: 8px;
+    }
+    .input-text {
+      flex: 1;
+      padding: 7px 11px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+    }
+    .input-text:focus {
+      border-color: var(--accent);
+    }
+    .btn {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .btn-sm {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      padding: 9px 22px;
+      font-size: 14px;
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      color: #fff;
+    }
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+      border-color: var(--danger);
+      padding: 9px 22px;
+      font-size: 14px;
+    }
+    .ext-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+      max-height: 205px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .ext-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 9px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.12s;
+      background: #fcfdff;
+    }
+    .ext-item:hover {
+      border-color: var(--accent);
+      background: #f0f7ff;
+    }
+    .ext-code {
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .ext-desc {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .opt-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 12.5px;
+    }
+    .opt-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+    }
+    .footer {
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer-note {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .view-hidden {
+      display: none !important;
+    }
+    .result-box {
+      text-align: center;
+      padding: 32px 20px;
+    }
+    .result-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    .result-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .result-list {
+      text-align: left;
+      max-width: 460px;
+      margin: 16px auto 24px auto;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 12.5px;
+      line-height: 1.8;
+      color: var(--text);
+      list-style: none;
+    }
+  </style>
+</head>
+<body>
+  <header class="banner">
+    <div class="banner-left">
+      <div class="logo-box">M↓</div>
+      <div>
+        <div class="banner-title" id="wizard-title">Go Markdown Reader 安装向导</div>
+        <div class="banner-sub">纯净本地运行 · 零外网请求 · 零后台进程 · 格式关联完全自主</div>
+      </div>
+    </div>
+    <div class="badge">v2.0 正式版</div>
+  </header>
+
+  <!-- INSTALL CONFIG VIEW -->
+  <main class="main-body" id="install-view">
+    <!-- 1. Install Path -->
+    <section class="section-card">
+      <div class="section-header">
+        <div class="section-title">📂 1. 选择安装目录</div>
+        <span style="font-size:11px; color:var(--muted);">无需管理员提权，安全绿色部署</span>
+      </div>
+      <div class="dir-row">
+        <input type="text" class="input-text" id="install-dir" value="">
+        <button class="btn" onclick="browseFolder()">浏览...</button>
+      </div>
+    </section>
+
+    <!-- 2. File Associations -->
+    <section class="section-card">
+      <div class="section-header">
+        <div class="section-title">🔗 2. 选择要关联的默认打开文件格式</div>
+        <div style="display:flex; gap:5px;">
+          <button class="btn btn-sm" onclick="applyPreset('recommended')">⭐ 推荐 (.md + .txt)</button>
+          <button class="btn btn-sm" onclick="applyPreset('md-only')">仅 .md</button>
+          <button class="btn btn-sm" onclick="applyPreset('all-text')">全选文本/配置</button>
+          <button class="btn btn-sm" onclick="applyPreset('none')">全不选</button>
+        </div>
+      </div>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px;">
+        提示：仅关联您勾选的格式，绝不私自篡改其他格式。原有默认关联会自动备份，随时可在软件内或卸载时无损还原。
+      </div>
+      <div class="ext-grid" id="ext-grid"></div>
+    </section>
+
+    <!-- 3. Shortcuts & Integration -->
+    <section class="section-card">
+      <div class="section-header">
+        <div class="section-title">⚡ 3. 快捷方式与系统集成</div>
+      </div>
+      <div class="opt-grid">
+        <label class="opt-label">
+          <input type="checkbox" id="opt-desktop" checked>
+          <span>创建桌面快捷方式</span>
+        </label>
+        <label class="opt-label">
+          <input type="checkbox" id="opt-startmenu" checked>
+          <span>创建开始菜单程序项</span>
+        </label>
+        <label class="opt-label">
+          <input type="checkbox" id="opt-ctxmenu" checked>
+          <span>添加到系统右键菜单 ("使用 Go Markdown Reader 打开")</span>
+        </label>
+        <label class="opt-label">
+          <input type="checkbox" id="opt-uninst" checked>
+          <span>生成独立卸载程序 (Uninstall.exe) 并注册至系统应用列表</span>
+        </label>
+      </div>
+    </section>
+  </main>
+
+  <!-- UNINSTALL VIEW -->
+  <main class="main-body view-hidden" id="uninstall-view">
+    <div class="section-card result-box">
+      <div class="result-icon">🧹</div>
+      <div class="result-title">卸载 Go Markdown Reader</div>
+      <p style="font-size:13px; color:var(--muted);">将为您彻底清理程序文件，并还原被关联文件的原有默认打开方式：</p>
+      <ul class="result-list">
+        <li>✓ 清除所有已注册的文件格式关联并还原备份默认值</li>
+        <li>✓ 移除系统右键菜单扩展项与应用程序注册表项</li>
+        <li>✓ 删除桌面快捷方式与开始菜单快捷方式</li>
+        <li>✓ 删除安装目录中的所有程序文件 (<code id="uninst-dir-label"></code>)</li>
+      </ul>
+      <div style="display:flex; justify-content:center; gap:12px;">
+        <button class="btn" onclick="exitSetup()" style="padding: 9px 20px;">取消</button>
+        <button class="btn btn-danger" id="btn-do-uninstall" onclick="runUninstall()">🗑️ 确认彻底卸载</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- DONE VIEW -->
+  <main class="main-body view-hidden" id="done-view">
+    <div class="section-card result-box">
+      <div class="result-icon" id="done-icon">🎉</div>
+      <div class="result-title" id="done-title">安装成功！</div>
+      <ul class="result-list" id="done-details"></ul>
+      <div style="display:flex; justify-content:center; gap:12px;" id="done-actions">
+        <button class="btn" onclick="exitSetup()" style="padding: 9px 18px;">完成并退出</button>
+        <button class="btn btn-primary" onclick="launchApp()">🚀 立即启动 Go Markdown Reader</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer" id="main-footer">
+    <div class="footer-note" id="status-note">准备就绪 · 安装包体积约 11 MB</div>
+    <div style="display:flex; gap:10px;">
+      <button class="btn" onclick="exitSetup()">取消</button>
+      <button class="btn btn-primary" id="btn-install" onclick="runInstall()">🚀 立即安装</button>
+    </div>
+  </footer>
+
+  <script>
+    let setupInfo = null;
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      const res = await fetch("/api/info");
+      setupInfo = await res.json();
+
+      document.getElementById("install-dir").value = setupInfo.defaultDir || "";
+      document.getElementById("uninst-dir-label").textContent = setupInfo.defaultDir || "";
+
+      if (setupInfo.mode === "uninstall") {
+        document.getElementById("wizard-title").textContent = "Go Markdown Reader 卸载向导";
+        document.getElementById("install-view").classList.add("view-hidden");
+        document.getElementById("main-footer").classList.add("view-hidden");
+        document.getElementById("uninstall-view").classList.remove("view-hidden");
+        return;
+      }
+
+      renderExtensions(setupInfo.extensions || []);
+    });
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function renderExtensions(exts) {
+      const grid = document.getElementById("ext-grid");
+      grid.innerHTML = exts.map(item => `
+        <label class="ext-item" title="${escapeHtml(item.name)}">
+          <input type="checkbox" class="ext-cb" value="${escapeHtml(item.ext)}" data-cat="${escapeHtml(item.category)}" ${item.defaultChecked ? "checked" : ""}>
+          <span class="ext-code">${escapeHtml(item.ext)}</span>
+          <span class="ext-desc">${escapeHtml(item.name.replace(/\s*\(.*?\)/, ""))}</span>
+        </label>
+      `).join("");
+    }
+
+    function applyPreset(preset) {
+      document.querySelectorAll(".ext-cb").forEach(cb => {
+        const ext = cb.value;
+        const cat = cb.getAttribute("data-cat");
+        if (preset === "none") {
+          cb.checked = false;
+        } else if (preset === "md-only") {
+          cb.checked = (ext === ".md" || ext === ".markdown");
+        } else if (preset === "recommended") {
+          cb.checked = (ext === ".md" || ext === ".markdown" || ext === ".txt");
+        } else if (preset === "all-text") {
+          cb.checked = (cat !== "office");
+        }
+      });
+    }
+
+    async function browseFolder() {
+      const res = await fetch("/api/browse-folder", { method: "POST" });
+      const data = await res.json();
+      if (data.path) {
+        let p = data.path;
+        if (!p.toLowerCase().endsWith("gomarkdownreader")) {
+          p = p.replace(/[\\\/]+$/, "") + "\\GoMarkdownReader";
+        }
+        document.getElementById("install-dir").value = p;
+      }
+    }
+
+    async function runInstall() {
+      const btn = document.getElementById("btn-install");
+      const note = document.getElementById("status-note");
+      btn.disabled = true;
+      btn.textContent = "⏳ 正在安装...";
+      note.textContent = "正在释放程序文件并配置系统文件关联...";
+
+      const payload = {
+        installDir: document.getElementById("install-dir").value.trim(),
+        extensions: Array.from(document.querySelectorAll(".ext-cb:checked")).map(cb => cb.value),
+        desktopShortcut: document.getElementById("opt-desktop").checked,
+        startMenuShortcut: document.getElementById("opt-startmenu").checked,
+        contextMenu: document.getElementById("opt-ctxmenu").checked,
+        registerUninstall: document.getElementById("opt-uninst").checked
+      };
+
+      try {
+        const res = await fetch("/api/install", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          alert("安装失败: " + (data.error || "未知错误"));
+          btn.disabled = false;
+          btn.textContent = "🚀 立即安装";
+          return;
+        }
+
+        document.getElementById("install-view").classList.add("view-hidden");
+        document.getElementById("main-footer").classList.add("view-hidden");
+        document.getElementById("done-view").classList.remove("view-hidden");
+
+        const details = document.getElementById("done-details");
+        details.innerHTML = (data.logs || []).map(l => `<li>✓ ${escapeHtml(l)}</li>`).join("");
+      } catch (err) {
+        alert("安装异常: " + err.message);
+        btn.disabled = false;
+        btn.textContent = "🚀 立即安装";
+      }
+    }
+
+    async function runUninstall() {
+      const btn = document.getElementById("btn-do-uninstall");
+      btn.disabled = true;
+      btn.textContent = "⏳ 正在清理...";
+
+      try {
+        const res = await fetch("/api/uninstall", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          alert("卸载提示: " + (data.error || "未知错误"));
+          btn.disabled = false;
+          btn.textContent = "🗑️ 确认彻底卸载";
+          return;
+        }
+
+        document.getElementById("uninstall-view").classList.add("view-hidden");
+        document.getElementById("done-view").classList.remove("view-hidden");
+        document.getElementById("done-icon").textContent = "✅";
+        document.getElementById("done-title").textContent = "已彻底卸载完成！";
+        document.getElementById("done-details").innerHTML = (data.logs || []).map(l => `<li>✓ ${escapeHtml(l)}</li>`).join("");
+        document.getElementById("done-actions").innerHTML = `
+          <button class="btn btn-primary" onclick="exitSetup()">完成并关闭</button>
+        `;
+      } catch (err) {
+        alert("卸载失败: " + err.message);
+        btn.disabled = false;
+        btn.textContent = "🗑️ 确认彻底卸载";
+      }
+    }
+
+    async function launchApp() {
+      await fetch("/api/launch", { method: "POST" });
+    }
+
+    async function exitSetup() {
+      await fetch("/api/exit", { method: "POST" });
+    }
+  </script>
+</body>
+</html>

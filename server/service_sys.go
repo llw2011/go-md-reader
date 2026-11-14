@@ -112,7 +112,7 @@ func (s *Server) DownloadOTAUpdate(ctx context.Context) (OTADownloadResponse, er
 		checkRes.LatestVersion,
 		checkRes.Asset,
 		func(p updater.DownloadProgress) {
-			s.TriggerEventWithData("ota-progress", p)
+			s.TriggerEvent("ota-progress", p)
 		},
 	)
 	if err != nil {

@@ -20,7 +20,7 @@ func (s *Server) BindWebView(wv WebViewBridge) error {
 		return nil
 	}
 
-	s.SetDataEventSink(func(event string, data interface{}) {
+	s.SetEventSink(func(event string, data interface{}) {
 		eventLit, _ := json.Marshal(event)
 		var callJS string
 		if data == nil {

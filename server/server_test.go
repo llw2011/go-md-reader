@@ -91,7 +91,7 @@ func TestUnifiedOpenSaveDoNotEchoEventsAndIncrementDocSeq(t *testing.T) {
 
 	srv := newTestServer(t, f1)
 	events := make(chan string, 5)
-	srv.SetEventSink(func(ev string) {
+	srv.SetEventSink(func(ev string, _ interface{}) {
 		events <- ev
 	})
 
@@ -188,7 +188,7 @@ func TestActivateEndpointWithNonce(t *testing.T) {
 	srv.SetActivateHandler(func() { activated = true })
 
 	events := make(chan string, 4)
-	srv.SetEventSink(func(ev string) {
+	srv.SetEventSink(func(ev string, _ interface{}) {
 		events <- ev
 	})
 	mux := srv.buildMux()
@@ -245,11 +245,11 @@ func TestOTAIdempotentApplyGuardAndProgressSink(t *testing.T) {
 
 	var gotEvent string
 	var gotPayload interface{}
-	srv.SetDataEventSink(func(ev string, data interface{}) {
+	srv.SetEventSink(func(ev string, data interface{}) {
 		gotEvent = ev
 		gotPayload = data
 	})
-	srv.TriggerEventWithData("ota-progress", updater.DownloadProgress{
+	srv.TriggerEvent("ota-progress", updater.DownloadProgress{
 		Version:         "v2.4.0",
 		AssetName:       "go-md-reader.exe",
 		Phase:           "downloading",
@@ -291,7 +291,7 @@ func TestEventDrivenWatcherDetectsExternalWriteWithoutEchoOnSave(t *testing.T) {
 
 	srv := newTestServer(t, docPath)
 	events := make(chan string, 8)
-	srv.SetEventSink(func(ev string) {
+	srv.SetEventSink(func(ev string, _ interface{}) {
 		events <- ev
 	})
 

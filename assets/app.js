@@ -9,7 +9,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   initLightboxWheel();
   initDelegatedLists();
   loadFile();
-  initWatcher();
   renderRecentMenu();
 
   window.addEventListener("click", (e) => {
@@ -272,8 +271,6 @@ window.__onBackendEvent = function (event, payload) {
     renderOTAProgress(payload);
   }
 };
-
-function initWatcher() {}
 
 // Keyboard shortcuts
 function initShortcuts() {

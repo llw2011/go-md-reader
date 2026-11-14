@@ -331,8 +331,7 @@
   #back-to-top,
   #toast-container,
   #a11y-status,
-  .modal-backdrop,
-  .no-print {
+  .modal-backdrop {
     display: none !important;
   }
 

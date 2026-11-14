@@ -255,7 +255,7 @@ async function showOTAModal() {
 
 function applyOTAConfigToUI(cfg) {
   const verEl = document.getElementById("ota-current-ver");
-  if (verEl) verEl.textContent = (cfg && cfg.currentVersion) || "v2.3.1";
+  if (verEl) verEl.textContent = (cfg && cfg.currentVersion) || "-";
   const preEl = document.getElementById("ota-prerelease");
   if (preEl) preEl.checked = !!(cfg && cfg.includePrerelease);
 }
@@ -270,12 +270,7 @@ async function saveOTAPrerelease() {
   const preEl = document.getElementById("ota-prerelease");
   const includePrerelease = !!(preEl && preEl.checked);
   try {
-    const data = await rpcCall("ota.config.save", {
-      repo: "",
-      token: "",
-      clearToken: false,
-      includePrerelease
-    });
+    const data = await rpcCall("ota.config.save", { includePrerelease });
     applyOTAConfigToUI(data.config);
     return true;
   } catch (err) {

@@ -71,6 +71,7 @@ var (
 	setForegroundWindow  = user32.NewProc("SetForegroundWindow")
 	showWindow           = user32.NewProc("ShowWindow")
 	isIconic             = user32.NewProc("IsIconic")
+	isWindowVisible      = user32.NewProc("IsWindowVisible")
 	setWindowLongPtrW    = user32.NewProc("SetWindowLongPtrW")
 	callWindowProcW      = user32.NewProc("CallWindowProcW")
 	shellNotifyIconW     = shell32.NewProc("Shell_NotifyIconW")
@@ -244,6 +245,32 @@ func (m *Manager) HideMainWindow() {
 	_, _, _ = showWindow.Call(m.cfg.MainHWND, swHide)
 }
 
+func shouldShowOnToggle(visible, iconic bool) bool {
+	return !visible || iconic
+}
+
+// IsMainWindowShown reports whether the main window is currently visible and not minimized.
+func (m *Manager) IsMainWindowShown() bool {
+	if m == nil || m.cfg.MainHWND == 0 {
+		return false
+	}
+	vis, _, _ := isWindowVisible.Call(m.cfg.MainHWND)
+	ico, _, _ := isIconic.Call(m.cfg.MainHWND)
+	return !shouldShowOnToggle(vis != 0, ico != 0)
+}
+
+// ToggleMainWindow shows/restores the main window when hidden or minimized, and hides it to tray when shown.
+func (m *Manager) ToggleMainWindow() {
+	if m == nil || m.cfg.MainHWND == 0 {
+		return
+	}
+	if m.IsMainWindowShown() {
+		m.HideMainWindow()
+	} else {
+		m.ShowMainWindow()
+	}
+}
+
 // RequestQuit forces a full application shutdown (bypassing close-to-tray).
 func (m *Manager) RequestQuit() {
 	if m == nil {
@@ -378,7 +405,11 @@ func (m *Manager) showContextMenu() {
 		_, _, _ = appendMenuW.Call(hMenu, flags, id, uintptr(unsafe.Pointer(p)))
 	}
 
-	appendText(menuShowWindow, mfString, "显示主窗口 (Go Markdown Reader)")
+	toggleLabel := "显示主窗口 (Go Markdown Reader)"
+	if m.IsMainWindowShown() {
+		toggleLabel = "隐藏主窗口到托盘"
+	}
+	appendText(menuShowWindow, mfString, toggleLabel)
 	_, _, _ = setMenuDefaultItem.Call(hMenu, menuShowWindow, 0)
 	appendText(menuOpenFile, mfString, "打开本地文档...")
 	appendText(menuCheckUpdate, mfString, "检查更新 / OTA 设置...")
@@ -447,8 +478,8 @@ func trayWndProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
 	case wmTrayCallback:
 		if m != nil {
 			switch uint32(lParam) {
-			case wmLButtonUp, wmLButtonDblClk:
-				m.ShowMainWindow()
+			case wmLButtonDblClk:
+				m.ToggleMainWindow()
 			case wmRButtonUp, wmContextMenu:
 				m.showContextMenu()
 			}
@@ -460,7 +491,7 @@ func trayWndProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
 			cmdID := uint32(wParam & 0xFFFF)
 			switch cmdID {
 			case menuShowWindow:
-				m.ShowMainWindow()
+				m.ToggleMainWindow()
 			case menuOpenFile:
 				m.ShowMainWindow()
 				if m.cfg.OnOpenFile != nil {

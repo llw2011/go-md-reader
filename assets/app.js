@@ -33,6 +33,7 @@ const THEMES = [
 
 document.addEventListener("DOMContentLoaded", async () => {
   await initReadingPrefs();
+  initWindowChrome();
   initDragDrop();
   initShortcuts();
   initToolbarKeyboard();
@@ -50,6 +51,133 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 });
+
+// Frameless Custom In-App Window Controls & Native Drag/Resize Bridge
+let isWindowMaximized = false;
+
+window.__syncWindowMaximized = function (max) {
+  isWindowMaximized = !!max;
+  document.body.classList.toggle("window-maximized", isWindowMaximized);
+  const maxIcon = document.getElementById("win-max-icon");
+  const restoreIcon = document.getElementById("win-restore-icon");
+  const maxBtn = document.getElementById("win-max-btn");
+  if (maxIcon && restoreIcon) {
+    maxIcon.style.display = isWindowMaximized ? "none" : "block";
+    restoreIcon.style.display = isWindowMaximized ? "block" : "none";
+  }
+  if (maxBtn) {
+    maxBtn.setAttribute("aria-label", isWindowMaximized ? "还原窗口" : "最大化");
+    maxBtn.title = isWindowMaximized ? "向下还原" : "最大化";
+  }
+};
+
+function winMinimize() {
+  if (typeof window.__winMinimize === "function") {
+    window.__winMinimize();
+  }
+}
+
+async function winToggleMaximize() {
+  if (typeof window.__winToggleMaximize === "function") {
+    const nextMax = await window.__winToggleMaximize();
+    window.__syncWindowMaximized(!!nextMax);
+  }
+}
+
+function winClose() {
+  if (typeof window.__winClose === "function") {
+    window.__winClose();
+  } else {
+    window.close();
+  }
+}
+
+function getResizeHitDirection(e) {
+  if (isWindowMaximized) return 0;
+  const edge = 6;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const left = e.clientX <= edge;
+  const right = e.clientX >= w - edge;
+  const top = e.clientY <= edge;
+  const bottom = e.clientY >= h - edge;
+
+  if (top && left) return 13;     // HTTOPLEFT
+  if (top && right) return 14;    // HTTOPRIGHT
+  if (bottom && left) return 16;  // HTBOTTOMLEFT
+  if (bottom && right) return 17; // HTBOTTOMRIGHT
+  if (left) return 10;            // HTLEFT
+  if (right) return 11;           // HTRIGHT
+  if (top) return 12;             // HTTOP
+  if (bottom) return 15;          // HTBOTTOM
+  return 0;
+}
+
+const RESIZE_CURSORS = {
+  10: "ew-resize",
+  11: "ew-resize",
+  12: "ns-resize",
+  13: "nwse-resize",
+  14: "nesw-resize",
+  15: "ns-resize",
+  16: "nesw-resize",
+  17: "nwse-resize",
+};
+
+function initWindowChrome() {
+  if (typeof window.__winIsMaximized === "function") {
+    window.__winIsMaximized().then(max => window.__syncWindowMaximized(!!max)).catch(() => {});
+  }
+
+  let activeEdgeCursor = "";
+  document.addEventListener("pointermove", (e) => {
+    const dir = getResizeHitDirection(e);
+    const nextCursor = RESIZE_CURSORS[dir] || "";
+    if (nextCursor !== activeEdgeCursor) {
+      activeEdgeCursor = nextCursor;
+      document.documentElement.style.cursor = nextCursor;
+    }
+  });
+
+  document.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    const dir = getResizeHitDirection(e);
+    if (dir && typeof window.__winStartResize === "function") {
+      e.preventDefault();
+      window.__winStartResize(dir);
+    }
+  }, true);
+
+  const titlebar = document.getElementById("app-titlebar");
+  if (!titlebar) return;
+
+  let lastClickTime = 0;
+  let lastClickX = 0;
+  let lastClickY = 0;
+
+  titlebar.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    if (getResizeHitDirection(e)) return;
+    if (e.target.closest(".no-drag, button, a, input, select, textarea")) return;
+
+    const now = Date.now();
+    const isDouble = now - lastClickTime < 420 && Math.hypot(e.screenX - lastClickX, e.screenY - lastClickY) <= 6;
+    if (isDouble) {
+      lastClickTime = 0;
+      e.preventDefault();
+      winToggleMaximize();
+      return;
+    }
+    lastClickTime = now;
+    lastClickX = e.screenX;
+    lastClickY = e.screenY;
+
+    if (typeof window.__winStartDrag === "function") {
+      e.preventDefault();
+      window.__winStartDrag();
+    }
+  });
+}
 
 // Single tab-stop roving focus fallback for toolbars when native focusgroup is unsupported
 function initToolbarKeyboard() {
@@ -170,6 +298,8 @@ async function loadFile(preserveScroll = false) {
       isEditorDirty = false;
       titleEl.textContent = "Go Markdown Reader";
       metaEl.textContent = "未打开文档";
+      const tbDoc = document.getElementById("titlebar-doc-name");
+      if (tbDoc) tbDoc.textContent = "未打开文档";
       contentEl.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">📖</div>
@@ -200,6 +330,11 @@ async function loadFile(preserveScroll = false) {
     titleEl.textContent = displayTitle;
     titleEl.title = data.filepath;
     document.title = `${data.filename} - Go Markdown Reader`;
+    const tbDoc = document.getElementById("titlebar-doc-name");
+    if (tbDoc) {
+      tbDoc.textContent = displayTitle;
+      tbDoc.title = data.filepath || "";
+    }
 
     const words = data.wordCount || 0;
     const estMinutes = Math.max(1, Math.round(words / 350));
@@ -1586,6 +1721,9 @@ function setTheme(themeId, save = true) {
   const found = THEMES.find(t => t.id === themeId) || THEMES[0];
   document.documentElement.setAttribute("data-theme", found.id);
   uiPrefsCache.theme = found.id;
+  if (typeof window.__winSetThemeDark === "function") {
+    window.__winSetThemeDark(found.id === "dark");
+  }
   if (save) {
     persistUIPrefs({ theme: found.id });
   }

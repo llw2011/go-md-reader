@@ -120,6 +120,8 @@ func main() {
 	}
 	defer w.Destroy()
 
+	installWindowChrome(uintptr(w.Window()), w)
+
 	if isPrimary {
 		trayMgr := tray.Start(tray.Config{
 			MainHWND: uintptr(w.Window()),

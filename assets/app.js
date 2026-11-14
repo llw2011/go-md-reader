@@ -35,6 +35,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await initReadingPrefs();
   initDragDrop();
   initShortcuts();
+  initToolbarKeyboard();
   initScrollProgress();
   initBackToTop();
   initLightboxWheel();
@@ -49,6 +50,43 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 });
+
+// Single tab-stop roving focus fallback for toolbars when native focusgroup is unsupported
+function initToolbarKeyboard() {
+  if ("focusGroup" in HTMLElement.prototype) return;
+  const bar = document.querySelector('.toolbar[role="toolbar"]');
+  if (!bar) return;
+  const getItems = () => Array.from(bar.querySelectorAll('button:not([disabled])')).filter(el => el.offsetParent !== null && !el.closest('#search-container') && !el.closest('.dropdown-menu'));
+  const items = getItems();
+  items.forEach((b, i) => { b.tabIndex = i === 0 ? 0 : -1; });
+
+  bar.addEventListener("focusin", ({ target }) => {
+    const cur = getItems();
+    if (cur.includes(target)) {
+      cur.forEach(b => { b.tabIndex = b === target ? 0 : -1; });
+    }
+  });
+
+  bar.addEventListener("keydown", (e) => {
+    const cur = getItems();
+    const idx = cur.indexOf(document.activeElement);
+    if (idx === -1) return;
+    const rtl = getComputedStyle(bar).direction === "rtl";
+    const steps = { ArrowRight: rtl ? -1 : 1, ArrowLeft: rtl ? 1 : -1 };
+    let next = -1;
+    if (e.key in steps) {
+      next = (idx + steps[e.key] + cur.length) % cur.length;
+    } else if (e.key === "Home") {
+      next = 0;
+    } else if (e.key === "End") {
+      next = cur.length - 1;
+    }
+    if (next !== -1) {
+      e.preventDefault();
+      cur[next].focus();
+    }
+  });
+}
 
 function initDelegatedLists() {
   const fileListEl = document.getElementById("file-list");
@@ -90,6 +128,8 @@ function showToast(message) {
   el.className = "toast-msg";
   el.textContent = message;
   container.appendChild(el);
+  const statusEl = document.getElementById("a11y-status");
+  if (statusEl) statusEl.textContent = message;
   setTimeout(() => {
     if (el.parentNode) el.parentNode.removeChild(el);
   }, 2600);
@@ -138,11 +178,11 @@ async function loadFile(preserveScroll = false) {
             100% 本地离线运行 · 零外联 · 零遥测 · 毫秒级启动<br>
             支持直接拖入或打开 <strong>Markdown (.md)</strong>、<strong>Word (.docx)</strong>、<strong>Excel (.xlsx)</strong>、<strong>PPT (.pptx)</strong>、<strong>CSV / JSON / 代码文件</strong>
           </div>
-          <div style="display:flex; gap:10px;">
-            <button class="btn btn-primary" onclick="openFileDialog()" style="padding: 8px 18px; font-size: 14px;">
+          <div class="empty-actions">
+            <button type="button" class="btn btn-primary btn-lg" onclick="openFileDialog()">
               📂 打开本地文档 (Ctrl+O)
             </button>
-            <button class="btn" onclick="toggleEditor()" style="padding: 8px 16px; font-size: 14px;">
+            <button type="button" class="btn btn-lg" onclick="toggleEditor()">
               ✏️ 新建 / 编辑 Markdown (Ctrl+E)
             </button>
           </div>
@@ -258,8 +298,12 @@ function renderDocumentHTML(htmlStr, tocItems) {
 
 // Sidebar Tabs: TOC vs Folder Siblings
 function switchSidebarTab(tab) {
-  document.getElementById("tab-btn-toc").classList.toggle("active", tab === "toc");
-  document.getElementById("tab-btn-files").classList.toggle("active", tab === "files");
+  const tocBtn = document.getElementById("tab-btn-toc");
+  const filesBtn = document.getElementById("tab-btn-files");
+  tocBtn.classList.toggle("active", tab === "toc");
+  filesBtn.classList.toggle("active", tab === "files");
+  tocBtn.setAttribute("aria-selected", String(tab === "toc"));
+  filesBtn.setAttribute("aria-selected", String(tab === "files"));
   document.getElementById("panel-toc").classList.toggle("active", tab === "toc");
   document.getElementById("panel-files").classList.toggle("active", tab === "files");
 }
@@ -374,6 +418,7 @@ function toggleEditor() {
   isEditorOpen = !isEditorOpen;
   pane.classList.toggle("active", isEditorOpen);
   btn.classList.toggle("active", isEditorOpen);
+  btn.setAttribute("aria-pressed", String(isEditorOpen));
 
   if (isEditorOpen) {
     if (currentDocData && currentDocData.rawContent && !textarea.value) {
@@ -1027,13 +1072,18 @@ function updateSearchMatchDisplay() {
 function toggleDropdown(menuId, e) {
   e.stopPropagation();
   const target = document.getElementById(menuId);
+  const trigger = e.currentTarget || (e.target && e.target.closest("button"));
   const isShown = target.classList.contains("show");
   closeAllDropdowns();
-  if (!isShown) target.classList.add("show");
+  if (!isShown) {
+    target.classList.add("show");
+    if (trigger) trigger.setAttribute("aria-expanded", "true");
+  }
 }
 
 function closeAllDropdowns() {
   document.querySelectorAll(".dropdown-menu").forEach(m => m.classList.remove("show"));
+  document.querySelectorAll('[aria-haspopup="menu"]').forEach(b => b.setAttribute("aria-expanded", "false"));
 }
 
 function addRecentFile(name, path) {
@@ -1201,11 +1251,11 @@ async function showAssocModal() {
     }
 
     container.innerHTML = currentAssocCatalog.map(item => `
-      <label class="stats-item" style="display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; padding: 8px 10px;">
+      <label class="stats-item choice-card">
         <input type="checkbox" class="assoc-ext-cb" value="${escapeHtml(item.ext)}" data-cat="${escapeHtml(item.category)}" ${item.isAssociated ? "checked" : ""}>
         <div style="overflow:hidden;">
-          <div style="font-weight:600; font-size:13px; color:var(--text-main);">${escapeHtml(item.ext)}</div>
-          <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(item.name)}</div>
+          <div class="choice-title">${escapeHtml(item.ext)}</div>
+          <div class="choice-desc">${escapeHtml(item.name)}</div>
         </div>
       </label>
     `).join("");
@@ -1486,14 +1536,25 @@ async function initReadingPrefs() {
   }
 
   const sidebar = document.getElementById("sidebar");
+  const sidebarBtn = document.getElementById("sidebar-btn");
   if (sidebar && uiPrefsCache.sidebarHidden) {
     sidebar.classList.add("hidden");
+  }
+  if (sidebarBtn) {
+    const isVisible = !uiPrefsCache.sidebarHidden;
+    sidebarBtn.setAttribute("aria-pressed", String(isVisible));
+    sidebarBtn.classList.toggle("active", isVisible);
   }
 }
 
 function toggleSidebar() {
   const sidebar = document.getElementById("sidebar");
+  const sidebarBtn = document.getElementById("sidebar-btn");
   const isHidden = sidebar.classList.toggle("hidden");
+  if (sidebarBtn) {
+    sidebarBtn.setAttribute("aria-pressed", String(!isHidden));
+    sidebarBtn.classList.toggle("active", !isHidden);
+  }
   uiPrefsCache.sidebarHidden = isHidden;
   persistUIPrefs({ sidebarHidden: isHidden });
 }
@@ -1502,7 +1563,10 @@ function applyWideMode(isWide, isAuto = false) {
   autoWideModeApplied = isAuto && isWide;
   document.body.classList.toggle("wide-mode", isWide);
   const btn = document.getElementById("wide-btn");
-  if (btn) btn.classList.toggle("active", isWide);
+  if (btn) {
+    btn.classList.toggle("active", isWide);
+    btn.setAttribute("aria-pressed", String(isWide));
+  }
 }
 
 function toggleWideMode(forceState) {

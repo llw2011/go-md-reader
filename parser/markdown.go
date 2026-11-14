@@ -6,8 +6,6 @@ import (
 	"net/url"
 	"strings"
 
-	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
-	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/ast"
@@ -247,16 +245,4 @@ func rewriteLocalMediaURLWithPrefix(dest, prefix string) string {
 		return dest
 	}
 	return prefix + strings.Join(escapedSegs, "/") + suffix
-}
-
-// GenerateChromaCSS generates CSS definitions for Chroma syntax highlighting
-func GenerateChromaCSS(styleName string) string {
-	s := styles.Get(styleName)
-	if s == nil {
-		s = styles.Fallback
-	}
-	formatter := chromahtml.New(chromahtml.WithClasses(true))
-	var buf bytes.Buffer
-	_ = formatter.WriteCSS(&buf, s)
-	return buf.String()
 }

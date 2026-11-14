@@ -41,8 +41,10 @@ type Server struct {
 	onQuit          func()
 	onActivate      func()
 	eventSink       func(string)
+	dataEventSink   func(string, interface{})
 	lastCheckRes    *updater.CheckResult
 	stagedUpdate    *updater.StagedUpdate
+	applyStarted    bool
 	nonce           string
 	listener        net.Listener
 	port            int
@@ -123,13 +125,38 @@ func (s *Server) SetEventSink(fn func(event string)) {
 	s.mu.Unlock()
 }
 
+// SetDataEventSink registers a structured push callback carrying an optional JSON-serializable payload.
+func (s *Server) SetDataEventSink(fn func(event string, data interface{})) {
+	s.mu.Lock()
+	s.dataEventSink = fn
+	s.mu.Unlock()
+}
+
 // TriggerEvent delivers a push notification (e.g., "reload", "open-doc", "open-ota") to WebView2.
 func (s *Server) TriggerEvent(event string) {
 	s.mu.RLock()
 	sink := s.eventSink
+	dataSink := s.dataEventSink
 	s.mu.RUnlock()
 	if sink != nil {
 		sink(event)
+	}
+	if dataSink != nil {
+		dataSink(event, nil)
+	}
+}
+
+// TriggerEventWithData delivers a push notification with a structured payload to WebView2.
+func (s *Server) TriggerEventWithData(event string, data interface{}) {
+	s.mu.RLock()
+	sink := s.eventSink
+	dataSink := s.dataEventSink
+	s.mu.RUnlock()
+	if sink != nil && data == nil {
+		sink(event)
+	}
+	if dataSink != nil {
+		dataSink(event, data)
 	}
 }
 

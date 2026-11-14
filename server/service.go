@@ -442,14 +442,32 @@ func (s *Server) CheckOTAUpdate(ctx context.Context) (OTACheckResponse, error) {
 	if err != nil {
 		return OTACheckResponse{}, err
 	}
+
+	var diskStaged *updater.StagedUpdate
+	if res.HasUpdate && res.Asset != nil {
+		diskStaged = s.updater.FindStaged(res.LatestVersion, res.Asset)
+	}
+
 	s.mu.Lock()
 	s.lastCheckRes = res
-	s.stagedUpdate = nil
+	if diskStaged != nil {
+		s.stagedUpdate = diskStaged
+	} else if s.stagedUpdate != nil {
+		sameVer := s.stagedUpdate.Version == res.LatestVersion
+		sameAsset := res.Asset != nil && s.stagedUpdate.AssetName == res.Asset.Name
+		if !res.HasUpdate || !sameVer || !sameAsset {
+			s.stagedUpdate = nil
+		} else if _, statErr := os.Stat(s.stagedUpdate.FilePath); statErr != nil {
+			s.stagedUpdate = nil
+		}
+	}
+	stagedCopy := s.stagedUpdate
 	s.mu.Unlock()
-	return OTACheckResponse{OK: true, Result: *res}, nil
+
+	return OTACheckResponse{OK: true, Result: *res, Staged: stagedCopy}, nil
 }
 
-// DownloadOTAUpdate downloads and SHA-256-verifies the pending release asset.
+// DownloadOTAUpdate downloads and SHA-256-verifies the pending release asset, streaming real progress events.
 func (s *Server) DownloadOTAUpdate(ctx context.Context) (OTADownloadResponse, error) {
 	s.mu.RLock()
 	checkRes := s.lastCheckRes
@@ -458,7 +476,14 @@ func (s *Server) DownloadOTAUpdate(ctx context.Context) (OTADownloadResponse, er
 		return OTADownloadResponse{}, errors.New("请先检查更新并确认存在可下载的 Windows 资产")
 	}
 
-	staged, err := s.updater.DownloadAndStage(ctx, checkRes.LatestVersion, checkRes.Asset)
+	staged, err := s.updater.DownloadAndStageWithProgress(
+		ctx,
+		checkRes.LatestVersion,
+		checkRes.Asset,
+		func(p updater.DownloadProgress) {
+			s.TriggerEventWithData("ota-progress", p)
+		},
+	)
 	if err != nil {
 		return OTADownloadResponse{}, err
 	}
@@ -469,22 +494,37 @@ func (s *Server) DownloadOTAUpdate(ctx context.Context) (OTADownloadResponse, er
 	return OTADownloadResponse{OK: true, Staged: *staged}, nil
 }
 
-// ApplyOTAUpdate starts the staged installer and triggers graceful app shutdown.
+// ApplyOTAUpdate starts the staged installer and triggers graceful app shutdown idempotently.
 func (s *Server) ApplyOTAUpdate() (OKResponse, error) {
-	s.mu.RLock()
+	s.mu.Lock()
+	if s.applyStarted {
+		s.mu.Unlock()
+		return OKResponse{OK: true}, nil
+	}
 	staged := s.stagedUpdate
+	if staged == nil && s.lastCheckRes != nil && s.lastCheckRes.Asset != nil {
+		staged = s.updater.FindStaged(s.lastCheckRes.LatestVersion, s.lastCheckRes.Asset)
+		if staged != nil {
+			s.stagedUpdate = staged
+		}
+	}
+	if staged == nil {
+		s.mu.Unlock()
+		return OKResponse{}, errors.New("尚无已就绪的更新包，请先点击下载")
+	}
+
 	curPath := ""
 	if !s.isMemoryOnly {
 		curPath = s.currentFilePath
 	}
 	onQuit := s.onQuit
-	s.mu.RUnlock()
-
-	if staged == nil {
-		return OKResponse{}, errors.New("尚无已就绪的更新包，请先点击下载")
-	}
+	s.applyStarted = true
+	s.mu.Unlock()
 
 	if err := updater.ApplyAndRestart(*staged, "", curPath); err != nil {
+		s.mu.Lock()
+		s.applyStarted = false
+		s.mu.Unlock()
 		return OKResponse{}, fmt.Errorf("启动更新安装程序失败: %w", err)
 	}
 

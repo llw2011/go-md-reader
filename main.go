@@ -45,6 +45,8 @@ func main() {
 		}
 	}
 
+	go updater.CleanupOldBinary("")
+
 	forceNewWindow := false
 	filteredArgs := make([]string, 0, len(os.Args))
 	for i, a := range os.Args {

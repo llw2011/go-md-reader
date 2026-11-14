@@ -59,7 +59,6 @@
           </div>
         </div>
 
-        <div class="toolbar-title" id="doc-title">Go Markdown Reader</div>
         <button type="button" class="toolbar-meta" id="doc-meta" onclick="showStatsModal()" title="点击查看详细统计与属性">未打开文档</button>
       </div>
 
@@ -108,7 +107,6 @@
 
           <button type="button" class="btn" onclick="showAssocModal()" title="配置文件格式默认关联 (.md / .txt 等) 与托盘偏好">⚙️ 关联</button>
           <button type="button" class="btn" onclick="showOTAModal()" title="在线检查更新与版本管理">☁️ 更新</button>
-          <button type="button" class="btn btn-icon" onclick="triggerPrint()" aria-label="打印或另存为 PDF" title="打印或另存为 PDF (Ctrl+P)">🖨️</button>
           <button type="button" class="btn btn-icon" onclick="loadFile(true)" aria-label="刷新文档" title="刷新文档 (F5)">🔄</button>
         </div>
       </div>
@@ -163,7 +161,6 @@
           <button class="btn" onclick="insertSnippet('```\n', '\n```')" title="代码块">&lt;/&gt;</button>
           <button type="button" class="btn" onclick="insertSnippet('> [!NOTE]\n> ', '')" title="提示框">💡 标注</button>
           <button type="button" class="btn" onclick="insertSnippet('| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n', '')" title="插入表格">⊞ 表格</button>
-          <button type="button" class="btn" onclick="autoFormatDocument()" title="自动排版源码：规范标题、列表、表格对齐与中英文间距 (Ctrl+Shift+F)">✨ 自动排版</button>
         </div>
         <div style="display:flex; gap:6px;">
           <button type="button" class="btn btn-primary" onclick="saveCurrentContent()" title="保存修改 (Ctrl+S)">💾 保存 (Ctrl+S)</button>
@@ -290,6 +287,15 @@
       <div id="ota-result-box" class="ota-result-box" style="display:none;">
         <div id="ota-status-line" style="font-size: 13px; font-weight: 700; margin-bottom: 8px;"></div>
         <pre id="ota-release-notes" class="ota-notes"></pre>
+        <div id="ota-progress-wrap" class="ota-progress-wrap" style="display:none;">
+          <div class="ota-progress-head">
+            <span id="ota-progress-phase">正在下载更新包...</span>
+            <span id="ota-progress-stats">0%</span>
+          </div>
+          <div class="ota-progress-track" id="ota-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="ota-progress-fill" id="ota-progress-fill"></div>
+          </div>
+        </div>
         <div id="ota-action-row" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <span id="ota-asset-info" style="font-size: 12px; color: var(--text-muted);"></span>
           <div style="display:flex; gap:8px;">

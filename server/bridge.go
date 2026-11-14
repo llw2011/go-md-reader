@@ -20,10 +20,20 @@ func (s *Server) BindWebView(wv WebViewBridge) error {
 		return nil
 	}
 
-	s.SetEventSink(func(event string) {
-		payload, _ := json.Marshal(event)
+	s.SetDataEventSink(func(event string, data interface{}) {
+		eventLit, _ := json.Marshal(event)
+		var callJS string
+		if data == nil {
+			callJS = fmt.Sprintf("if (window.__onBackendEvent) window.__onBackendEvent(%s);", eventLit)
+		} else {
+			dataLit, err := json.Marshal(data)
+			if err != nil {
+				return
+			}
+			callJS = fmt.Sprintf("if (window.__onBackendEvent) window.__onBackendEvent(%s, %s);", eventLit, dataLit)
+		}
 		wv.Dispatch(func() {
-			wv.Eval(fmt.Sprintf("if (window.__onBackendEvent) window.__onBackendEvent(%s);", payload))
+			wv.Eval(callJS)
 		})
 	})
 

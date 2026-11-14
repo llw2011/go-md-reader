@@ -439,19 +439,6 @@ body.wide-mode {
   flex-shrink: 0;
 }
 
-.toolbar-title {
-  font-weight: 600;
-  color: var(--text-main);
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 240px;
-  margin-left: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-}
-
 .toolbar-meta {
   flex-shrink: 0;
   color: var(--text-muted);
@@ -1436,28 +1423,11 @@ body.wide-mode {
   margin-bottom: 14px;
 }
 
-.field-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.field-hint {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
-
-.input-full {
-  width: 100%;
-}
-
 .ota-result-box {
   border-top: 1px solid var(--border-color);
   padding-top: 12px;
   overflow-y: auto;
-  max-height: 260px;
+  max-height: 290px;
 }
 
 .ota-notes {
@@ -1470,6 +1440,66 @@ body.wide-mode {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   margin-bottom: 10px;
+}
+
+.ota-progress-wrap {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+}
+
+.ota-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+#ota-progress-phase {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+#ota-progress-stats {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.ota-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--seg-track);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.ota-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-top) 100%);
+  transition: width 120ms ease-out, background 200ms ease;
+}
+
+.ota-progress-fill.done {
+  background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+}
+
+.ota-progress-fill.indeterminate {
+  width: 45% !important;
+  animation: otaIndeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes otaIndeterminate {
+  0% { transform: translateX(-80%); }
+  50% { transform: translateX(110%); }
+  100% { transform: translateX(-80%); }
 }
 
 .stats-label {

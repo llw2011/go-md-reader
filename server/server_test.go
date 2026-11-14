@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"go-md-reader/updater"
 )
 
 func newTestServer(t *testing.T, initialFile string) *Server {
@@ -234,5 +236,47 @@ func TestFormatRPC(t *testing.T) {
 	}
 	if !strings.Contains(resp.HTML, "<h1") {
 		t.Fatalf("expected rendered heading HTML, got %q", resp.HTML)
+	}
+}
+
+func TestOTAIdempotentApplyGuardAndProgressSink(t *testing.T) {
+	srv := newTestServer(t, "")
+
+	var gotEvent string
+	var gotPayload interface{}
+	srv.SetDataEventSink(func(ev string, data interface{}) {
+		gotEvent = ev
+		gotPayload = data
+	})
+	srv.TriggerEventWithData("ota-progress", updater.DownloadProgress{
+		Version:         "v2.4.0",
+		AssetName:       "go-md-reader.exe",
+		Phase:           "downloading",
+		BytesDownloaded: 50,
+		TotalBytes:      100,
+		Percent:         50,
+	})
+	if gotEvent != "ota-progress" {
+		t.Fatalf("expected ota-progress event, got %q", gotEvent)
+	}
+	if p, ok := gotPayload.(updater.DownloadProgress); !ok || p.Percent != 50 {
+		t.Fatalf("unexpected progress payload: %#v", gotPayload)
+	}
+
+	// Without staged update, ota.apply rejects cleanly
+	if _, err := srv.HandleRPC(context.Background(), "ota.apply", nil); err == nil {
+		t.Fatal("expected error when applying without staged update")
+	}
+
+	// Once applyStarted is active, repeat ota.apply is an idempotent no-op
+	srv.mu.Lock()
+	srv.applyStarted = true
+	srv.mu.Unlock()
+	res, err := srv.HandleRPC(context.Background(), "ota.apply", nil)
+	if err != nil {
+		t.Fatalf("expected idempotent OK when apply already started, got %v", err)
+	}
+	if okResp, ok := res.(OKResponse); !ok || !okResp.OK {
+		t.Fatalf("expected OKResponse{OK:true}, got %#v", res)
 	}
 }

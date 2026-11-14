@@ -343,7 +343,6 @@ function showToast(message) {
 async function loadFile(preserveScroll = false) {
   const contentEl = document.getElementById("content");
   const tocList = document.getElementById("toc-list");
-  const titleEl = document.getElementById("doc-title");
   const metaEl = document.getElementById("doc-meta");
   const tocCountEl = document.getElementById("toc-count");
   const scrollContainer = document.getElementById("content-area");
@@ -367,10 +366,10 @@ async function loadFile(preserveScroll = false) {
 
     if (!data.hasFile) {
       isEditorDirty = false;
-      titleEl.textContent = "Go Markdown Reader";
       metaEl.textContent = "未打开文档";
       const tbDoc = document.getElementById("titlebar-doc-name");
-      if (tbDoc) tbDoc.textContent = "未打开文档";
+      if (tbDoc) tbDoc.textContent = "就绪";
+      document.title = "Go Markdown Reader";
       contentEl.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">📖</div>
@@ -398,8 +397,6 @@ async function loadFile(preserveScroll = false) {
     if (data.isConverted && data.formatNote) {
       displayTitle = `[${data.formatNote}] ${data.filename}`;
     }
-    titleEl.textContent = displayTitle;
-    titleEl.title = data.filepath;
     document.title = `${data.filename} - Go Markdown Reader`;
     const tbDoc = document.getElementById("titlebar-doc-name");
     if (tbDoc) {
@@ -1515,7 +1512,103 @@ async function saveAssocSettings() {
   }
 }
 
-// Online Update Management
+// Online Update Management (with real percentage progress & idempotent guards)
+let otaCheckInFlight = false;
+let otaDownloadInFlight = false;
+let otaApplyInFlight = false;
+let otaKnownTotalBytes = 0;
+
+function formatBytesMB(bytes) {
+  if (!bytes || bytes <= 0) return "0 MB";
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function resetOTAProgress() {
+  otaKnownTotalBytes = 0;
+  const wrap = document.getElementById("ota-progress-wrap");
+  const fill = document.getElementById("ota-progress-fill");
+  const track = document.getElementById("ota-progress-track");
+  const phaseEl = document.getElementById("ota-progress-phase");
+  const statsEl = document.getElementById("ota-progress-stats");
+  if (wrap) wrap.style.display = "none";
+  if (fill) {
+    fill.classList.remove("done", "indeterminate");
+    fill.style.width = "0%";
+  }
+  if (track) track.setAttribute("aria-valuenow", "0");
+  if (phaseEl) phaseEl.textContent = "正在准备下载...";
+  if (statsEl) statsEl.textContent = "0%";
+}
+
+function renderOTAProgress(progress) {
+  if (!progress) return;
+  const wrap = document.getElementById("ota-progress-wrap");
+  const fill = document.getElementById("ota-progress-fill");
+  const track = document.getElementById("ota-progress-track");
+  const phaseEl = document.getElementById("ota-progress-phase");
+  const statsEl = document.getElementById("ota-progress-stats");
+  if (!wrap || !fill || !phaseEl || !statsEl) return;
+
+  wrap.style.display = "block";
+  const pct = typeof progress.percent === "number" ? progress.percent : -1;
+  const downloaded = progress.bytesDownloaded || 0;
+  if (progress.totalBytes && progress.totalBytes > 0) {
+    otaKnownTotalBytes = progress.totalBytes;
+  }
+  const total = (progress.totalBytes && progress.totalBytes > 0) ? progress.totalBytes : otaKnownTotalBytes;
+
+  fill.classList.remove("done", "indeterminate");
+
+  if (progress.phase === "ready") {
+    fill.classList.add("done");
+    fill.style.width = "100%";
+    if (track) track.setAttribute("aria-valuenow", "100");
+    phaseEl.textContent = progress.reusedCache ? "已命中本地校验缓存 ✓" : "下载与校验完成 ✓";
+    statsEl.textContent = total > 0 ? `100% (${formatBytesMB(total)})` : "100%";
+    return;
+  }
+
+  if (progress.phase === "verifying") {
+    fill.style.width = "100%";
+    if (track) track.setAttribute("aria-valuenow", "100");
+    phaseEl.textContent = "正在校验 SHA-256 完整性...";
+    statsEl.textContent = total > 0 ? `100% (${formatBytesMB(downloaded)})` : "100%";
+    return;
+  }
+
+  if (progress.phase === "error") {
+    phaseEl.textContent = "下载中断，可重试（支持断点重下）";
+    statsEl.textContent = pct >= 0 ? `${pct}%` : formatBytesMB(downloaded);
+    return;
+  }
+
+  phaseEl.textContent = "正在下载更新包...";
+  if (pct >= 0 && total > 0) {
+    const clamped = Math.max(0, Math.min(100, pct));
+    fill.style.width = `${clamped}%`;
+    if (track) track.setAttribute("aria-valuenow", String(clamped));
+    statsEl.textContent = `${clamped}% (${formatBytesMB(downloaded)} / ${formatBytesMB(total)})`;
+  } else {
+    fill.classList.add("indeterminate");
+    if (track) track.removeAttribute("aria-valuenow");
+    statsEl.textContent = formatBytesMB(downloaded);
+  }
+}
+
+function showStagedReadyUI(st) {
+  const applyBtn = document.getElementById("btn-ota-apply");
+  const dlBtn = document.getElementById("btn-ota-download");
+  const assetInfoEl = document.getElementById("ota-asset-info");
+  const verifyText = st.verifiedSha256 ? "SHA-256 校验通过 ✓" : "已完成校验 ✓";
+  const cacheTag = st.reusedCache ? " (本地缓存)" : "";
+  if (assetInfoEl) {
+    assetInfoEl.textContent = `就绪: ${st.assetName} · ${verifyText}${cacheTag}`;
+  }
+  if (dlBtn) dlBtn.style.display = "none";
+  if (applyBtn) applyBtn.style.display = "inline-flex";
+}
+
 async function showOTAModal() {
   const modal = document.getElementById("ota-modal");
   if (!modal) return;
@@ -1559,8 +1652,8 @@ async function saveOTAPrerelease() {
 }
 
 async function checkOTAUpdate() {
-  const saved = await saveOTAPrerelease();
-  if (!saved) return;
+  if (otaCheckInFlight || otaDownloadInFlight) return;
+  otaCheckInFlight = true;
 
   const btn = document.getElementById("btn-ota-check");
   const resultBox = document.getElementById("ota-result-box");
@@ -1574,8 +1667,12 @@ async function checkOTAUpdate() {
   btn.textContent = "⏳ 正在检查最新版本...";
   dlBtn.style.display = "none";
   applyBtn.style.display = "none";
+  resetOTAProgress();
 
   try {
+    const saved = await saveOTAPrerelease();
+    if (!saved) return;
+
     const data = await rpcCall("ota.check");
     resultBox.style.display = "block";
 
@@ -1586,7 +1683,16 @@ async function checkOTAUpdate() {
     if (r.hasUpdate) {
       statusLine.textContent = `🎉 发现新版本: ${r.latestVersion} (${r.releaseName || ""})`;
       statusLine.style.color = "#10b981";
-      if (r.asset) {
+      if (data.staged) {
+        renderOTAProgress({
+          phase: "ready",
+          percent: 100,
+          bytesDownloaded: r.asset ? r.asset.size : 0,
+          totalBytes: r.asset ? r.asset.size : 0,
+          reusedCache: true
+        });
+        showStagedReadyUI(data.staged);
+      } else if (r.asset) {
         const mb = (r.asset.size / (1024 * 1024)).toFixed(2);
         const shaNote = r.asset.sha256 ? " · 支持 SHA-256 校验" : "";
         assetInfoEl.textContent = `匹配更新包: ${r.asset.name} (${mb} MB${shaNote})`;
@@ -1606,41 +1712,56 @@ async function checkOTAUpdate() {
     notesEl.style.display = "none";
     assetInfoEl.textContent = "";
   } finally {
+    otaCheckInFlight = false;
     btn.disabled = false;
     btn.textContent = "🔍 检查最新版本";
   }
 }
 
 async function downloadOTAUpdate() {
+  if (otaDownloadInFlight || otaApplyInFlight) return;
+  otaDownloadInFlight = true;
+
   const dlBtn = document.getElementById("btn-ota-download");
+  const checkBtn = document.getElementById("btn-ota-check");
   const applyBtn = document.getElementById("btn-ota-apply");
-  const assetInfoEl = document.getElementById("ota-asset-info");
 
   dlBtn.disabled = true;
+  if (checkBtn) checkBtn.disabled = true;
   dlBtn.textContent = "⏳ 正在下载与校验...";
+  renderOTAProgress({ phase: "downloading", percent: 0, bytesDownloaded: 0, totalBytes: 0 });
+
   try {
     const data = await rpcCall("ota.download");
     const st = data.staged;
-    const verifyText = st.verifiedSha256 ? "SHA-256 校验通过 ✓" : "已完成下载 (远端未提供摘要)";
-    assetInfoEl.textContent = `就绪: ${st.assetName} · ${verifyText}`;
-    dlBtn.style.display = "none";
-    applyBtn.style.display = "inline-flex";
-    showToast("✓ 更新包已下载并校验完成，可点击安装重启");
+    renderOTAProgress({ phase: "ready", percent: 100, reusedCache: !!st.reusedCache });
+    showStagedReadyUI(st);
+    showToast(st.reusedCache ? "✓ 已复用本地校验缓存，可直接安装重启" : "✓ 更新包已下载并校验完成，可点击安装重启");
   } catch (err) {
+    renderOTAProgress({ phase: "error", percent: 0, bytesDownloaded: 0, totalBytes: 0 });
     showToast("❌ 下载异常: " + err.message);
   } finally {
+    otaDownloadInFlight = false;
     dlBtn.disabled = false;
+    if (checkBtn) checkBtn.disabled = false;
     dlBtn.textContent = "⬇️ 下载并校验更新";
+    if (applyBtn && applyBtn.style.display !== "none") {
+      dlBtn.style.display = "none";
+    }
   }
 }
 
 async function applyOTAUpdate() {
+  if (otaApplyInFlight) return;
+  otaApplyInFlight = true;
+
   const applyBtn = document.getElementById("btn-ota-apply");
   applyBtn.disabled = true;
   applyBtn.textContent = "⏳ 正在替换并重启...";
   try {
     await rpcCall("ota.apply");
   } catch (err) {
+    otaApplyInFlight = false;
     showToast("❌ 应用更新异常: " + err.message);
     applyBtn.disabled = false;
     applyBtn.textContent = "🚀 立即安装并重启";
@@ -1747,13 +1868,15 @@ function adjustFontSize(delta) {
 }
 
 // Backend push event receiver (delivered via WebView2 Eval instead of HTTP SSE)
-window.__onBackendEvent = function (event) {
+window.__onBackendEvent = function (event, payload) {
   if (event === "reload") {
     loadFile(true);
   } else if (event === "open-doc") {
     loadFile(false);
   } else if (event === "open-ota") {
     showOTAModal();
+  } else if (event === "ota-progress") {
+    renderOTAProgress(payload);
   }
 };
 

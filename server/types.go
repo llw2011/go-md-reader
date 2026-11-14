@@ -138,8 +138,9 @@ type OTAConfigSaveResponse struct {
 
 // OTACheckResponse wraps the latest release check output.
 type OTACheckResponse struct {
-	OK     bool                `json:"ok"`
-	Result updater.CheckResult `json:"result"`
+	OK     bool                  `json:"ok"`
+	Result updater.CheckResult   `json:"result"`
+	Staged *updater.StagedUpdate `json:"staged,omitempty"`
 }
 
 // OTADownloadResponse wraps the staged update artifact metadata.

@@ -45,7 +45,32 @@ func main() {
 		}
 	}
 
-	_, initialFile := assoc.NormalizeNotepadArgs(os.Args)
+	forceNewWindow := false
+	filteredArgs := make([]string, 0, len(os.Args))
+	for i, a := range os.Args {
+		if i > 0 && a == "--new-window" {
+			forceNewWindow = true
+			continue
+		}
+		filteredArgs = append(filteredArgs, a)
+	}
+
+	_, initialFile := assoc.NormalizeNotepadArgs(filteredArgs)
+	if initialFile != "" {
+		if abs, err := filepath.Abs(initialFile); err == nil {
+			initialFile = abs
+		}
+	}
+
+	mutexHandle, isPrimary := acquireSingleInstanceMutex()
+	if mutexHandle != 0 {
+		defer windows.CloseHandle(mutexHandle)
+	}
+	if !isPrimary && !forceNewWindow {
+		if activateExistingInstance(initialFile, 2500*time.Millisecond) {
+			return
+		}
+	}
 
 	// Start internal server
 	srv, err := server.New(assetsFS, initialFile)
@@ -58,6 +83,11 @@ func main() {
 			log.Printf("本地服务退出: %v", err)
 		}
 	}()
+
+	if isPrimary {
+		writeInstanceRecord(srv.Port(), srv.Token())
+		defer removeInstanceRecord(os.Getpid())
+	}
 
 	// Per-process isolated WebView2 runtime data directory prevents lock/elevation conflicts
 	// and stale cookie leaks across restarts; user preferences persist in AppData\ui_prefs.json.
@@ -90,26 +120,39 @@ func main() {
 	}
 	defer w.Destroy()
 
-	trayMgr := tray.Start(tray.Config{
-		MainHWND: uintptr(w.Window()),
-		Tooltip:  "Go Markdown Reader " + updater.CurrentVersion,
-		OnOpenFile: func() {
-			if p, err := dialog.SelectMarkdownFile(); err == nil && p != "" {
-				srv.SetCurrentFile(p)
-			}
-		},
-		OnCheckUpdate: func() {
-			srv.TriggerEvent("open-ota")
-		},
-		OnQuit: func() {
+	if isPrimary {
+		trayMgr := tray.Start(tray.Config{
+			MainHWND: uintptr(w.Window()),
+			Tooltip:  "Go Markdown Reader " + updater.CurrentVersion,
+			OnOpenFile: func() {
+				if p, err := dialog.SelectMarkdownFile(); err == nil && p != "" {
+					srv.SetCurrentFile(p)
+				}
+			},
+			OnCheckUpdate: func() {
+				srv.TriggerEvent("open-ota")
+			},
+			OnQuit: func() {
+				w.Dispatch(func() {
+					w.Terminate()
+				})
+			},
+		})
+		defer trayMgr.Stop()
+
+		srv.SetTrayHandlers(trayMgr.MinimizeToTrayEnabled, trayMgr.SetMinimizeToTray, trayMgr.RequestQuit)
+		srv.SetActivateHandler(func() {
+			w.Dispatch(func() {
+				trayMgr.ShowMainWindow()
+			})
+		})
+	} else {
+		srv.SetTrayHandlers(func() bool { return false }, nil, func() {
 			w.Dispatch(func() {
 				w.Terminate()
 			})
-		},
-	})
-	defer trayMgr.Stop()
-
-	srv.SetTrayHandlers(trayMgr.MinimizeToTrayEnabled, trayMgr.SetMinimizeToTray, trayMgr.RequestQuit)
+		})
+	}
 
 	w.Navigate(srv.URL())
 	w.Run()

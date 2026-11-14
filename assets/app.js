@@ -1286,7 +1286,7 @@ async function showOTAModal() {
 }
 
 function applyOTAConfigToUI(cfg) {
-  document.getElementById("ota-current-ver").textContent = cfg.currentVersion || "v2.1.1";
+  document.getElementById("ota-current-ver").textContent = cfg.currentVersion || "v2.1.2";
   document.getElementById("ota-repo").value = cfg.repo || "";
   document.getElementById("ota-prerelease").checked = !!cfg.includePrerelease;
   const statusEl = document.getElementById("ota-token-status");
@@ -1546,6 +1546,8 @@ function initWatcher() {
     evtSource.onmessage = (event) => {
       if (event.data === "reload") {
         loadFile(true);
+      } else if (event.data === "open-doc") {
+        loadFile(false);
       } else if (event.data === "open-ota") {
         showOTAModal();
       }

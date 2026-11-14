@@ -46,6 +46,7 @@ type Server struct {
 	getMinToTray    func() bool
 	setMinToTray    func(bool)
 	onQuit          func()
+	onActivate      func()
 	clientsMu       sync.Mutex
 	clients         map[chan string]struct{}
 	token           string
@@ -99,6 +100,11 @@ func (s *Server) Start() error {
 // Token returns the session authentication token
 func (s *Server) Token() string {
 	return s.token
+}
+
+// Port returns the bound local TCP port.
+func (s *Server) Port() int {
+	return s.port
 }
 
 func (s *Server) isValidToken(candidate string) bool {
@@ -162,6 +168,7 @@ func (s *Server) buildMux() *http.ServeMux {
 	mux.HandleFunc("/api/open-binary", s.requireAuth(s.handleOpenBinary))
 	mux.HandleFunc("/api/tray/prefs", s.requireAuth(s.handleTrayPrefs))
 	mux.HandleFunc("/api/prefs", s.requireAuth(s.handleUIPrefs))
+	mux.HandleFunc("/api/activate", s.requireAuth(s.handleActivate))
 	mux.HandleFunc("/api/ota/config", s.requireAuth(s.handleOTAConfig))
 	mux.HandleFunc("/api/ota/check", s.requireAuth(s.handleOTACheck))
 	mux.HandleFunc("/api/ota/download", s.requireAuth(s.handleOTADownload))
@@ -179,6 +186,44 @@ func (s *Server) SetTrayHandlers(getMin func() bool, setMin func(bool), onQuit f
 	s.setMinToTray = setMin
 	s.onQuit = onQuit
 	s.mu.Unlock()
+}
+
+// SetActivateHandler registers the callback invoked when another instance forwards a file/focus request.
+func (s *Server) SetActivateHandler(onActivate func()) {
+	s.mu.Lock()
+	s.onActivate = onActivate
+	s.mu.Unlock()
+}
+
+func (s *Server) handleActivate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Path string `json:"path"`
+	}
+	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024)).Decode(&req)
+
+	docPath := strings.TrimSpace(req.Path)
+	if docPath != "" {
+		if info, err := os.Stat(docPath); err != nil || info.IsDir() {
+			writeJSONError(w, http.StatusNotFound, "File not found")
+			return
+		}
+		s.setCurrentFile(docPath, false)
+		s.TriggerEvent("open-doc")
+	}
+
+	s.mu.RLock()
+	activateFn := s.onActivate
+	s.mu.RUnlock()
+	if activateFn != nil {
+		activateFn()
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 }
 
 // SetCurrentFile updates the active document file from disk and notifies SSE listeners

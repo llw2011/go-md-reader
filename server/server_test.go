@@ -247,3 +247,37 @@ func TestUIPrefsEndpoint(t *testing.T) {
 		t.Fatalf("unexpected reloaded UIPrefs: %+v", reloaded)
 	}
 }
+
+func TestActivateEndpoint(t *testing.T) {
+	dir := t.TempDir()
+	docPath := filepath.Join(dir, "activated.md")
+	_ = os.WriteFile(docPath, []byte("# Activated"), 0644)
+
+	srv := newTestServer(t, "")
+	activated := false
+	srv.SetActivateHandler(func() { activated = true })
+	mux := srv.buildMux()
+
+	sseCh := make(chan string, 4)
+	srv.clientsMu.Lock()
+	srv.clients[sseCh] = struct{}{}
+	srv.clientsMu.Unlock()
+
+	body, _ := json.Marshal(map[string]string{"path": docPath})
+	req := httptest.NewRequest(http.MethodPost, "/api/activate", bytes.NewReader(body))
+	req.Header.Set("X-Auth-Token", srv.Token())
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !activated {
+		t.Fatalf("expected 200 and activated=true, got code=%d activated=%v", rec.Code, activated)
+	}
+
+	select {
+	case ev := <-sseCh:
+		if ev != "open-doc" {
+			t.Fatalf("expected open-doc SSE event, got %q", ev)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("expected open-doc SSE event")
+	}
+}

@@ -368,6 +368,14 @@ func NormalizeNotepadArgs(args []string) (isProxy bool, docPath string) {
 		rest = append(rest, a)
 	}
 	if !isProxy {
+		if len(args) > 2 {
+			if _, err := os.Stat(args[1]); err != nil {
+				joined := strings.Join(args[1:], " ")
+				if _, jErr := os.Stat(joined); jErr == nil {
+					return false, joined
+				}
+			}
+		}
 		return false, args[1]
 	}
 

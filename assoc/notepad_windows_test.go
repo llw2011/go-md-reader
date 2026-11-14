@@ -1,6 +1,11 @@
 package assoc
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestNormalizeNotepadArgs(t *testing.T) {
 	cases := []struct {
@@ -43,4 +48,16 @@ func TestNormalizeNotepadArgs(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("unquoted direct open with spaces", func(t *testing.T) {
+		spacedFile := filepath.Join(t.TempDir(), "jev api key.txt")
+		if err := os.WriteFile(spacedFile, []byte("hello"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		splitArgs := append([]string{"go-md-reader.exe"}, strings.Split(spacedFile, " ")...)
+		gotProxy, gotPath := NormalizeNotepadArgs(splitArgs)
+		if gotProxy || gotPath != spacedFile {
+			t.Fatalf("NormalizeNotepadArgs(%v) = (%v, %q), want (false, %q)", splitArgs, gotProxy, gotPath, spacedFile)
+		}
+	})
 }

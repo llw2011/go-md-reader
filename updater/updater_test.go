@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -296,5 +297,18 @@ func TestDownloadProgressAndIdempotentCoalescingAndCacheReuse(t *testing.T) {
 	}
 	if got := assetHits.Load(); got != 2 {
 		t.Fatalf("expected 1 fresh HTTP fetch after tampering, got total %d", got)
+	}
+}
+
+func TestBuildRestartScriptQuotesSpacesAndSpecialChars(t *testing.T) {
+	script := buildRestartScript(
+		1234,
+		StagedUpdate{FilePath: `C:\Temp\go-md-reader.exe`},
+		`C:\Program Files\GoMarkdownReader\go-md-reader.exe`,
+		`C:\Users\Admin\Desktop\jev 'api' key.txt`,
+	)
+	wantArg := `-ArgumentList '"C:\Users\Admin\Desktop\jev ''api'' key.txt"'`
+	if !strings.Contains(script, wantArg) {
+		t.Fatalf("expected double-quoted ArgumentList %s inside restart script, got:\n%s", wantArg, script)
 	}
 }

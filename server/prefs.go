@@ -17,6 +17,8 @@ type RecentFileEntry struct {
 type UIPrefs struct {
 	Theme           string            `json:"theme"`
 	FontSize        int               `json:"fontSize"`
+	FontFamily      string            `json:"fontFamily"`
+	ContentWidth    string            `json:"contentWidth"`
 	SidebarHidden   bool              `json:"sidebarHidden"`
 	RecentFiles     []RecentFileEntry `json:"recentFiles"`
 	ScrollPositions map[string]int    `json:"scrollPositions"`
@@ -25,6 +27,8 @@ type UIPrefs struct {
 type prefsPatch struct {
 	Theme           *string            `json:"theme,omitempty"`
 	FontSize        *int               `json:"fontSize,omitempty"`
+	FontFamily      *string            `json:"fontFamily,omitempty"`
+	ContentWidth    *string            `json:"contentWidth,omitempty"`
 	SidebarHidden   *bool              `json:"sidebarHidden,omitempty"`
 	RecentFiles     *[]RecentFileEntry `json:"recentFiles,omitempty"`
 	ScrollPath      *string            `json:"scrollPath,omitempty"`
@@ -59,11 +63,29 @@ func newUIPrefsStore(filePath string) *uiPrefsStore {
 		prefs: UIPrefs{
 			Theme:           "light",
 			FontSize:        16,
+			FontFamily:      "sans",
+			ContentWidth:    "standard",
 			ScrollPositions: map[string]int{},
 		},
 	}
 	st.loadLocked()
 	return st
+}
+
+func normalizeFontFamily(v string) string {
+	if v == "serif" {
+		return "serif"
+	}
+	return "sans"
+}
+
+func normalizeContentWidth(v string) string {
+	switch v {
+	case "narrow", "standard", "wide":
+		return v
+	default:
+		return "standard"
+	}
 }
 
 func (st *uiPrefsStore) loadLocked() {
@@ -81,6 +103,8 @@ func (st *uiPrefsStore) loadLocked() {
 	if loaded.FontSize >= 12 && loaded.FontSize <= 26 {
 		st.prefs.FontSize = loaded.FontSize
 	}
+	st.prefs.FontFamily = normalizeFontFamily(loaded.FontFamily)
+	st.prefs.ContentWidth = normalizeContentWidth(loaded.ContentWidth)
 	st.prefs.SidebarHidden = loaded.SidebarHidden
 	if len(loaded.RecentFiles) > 10 {
 		loaded.RecentFiles = loaded.RecentFiles[:10]
@@ -114,6 +138,12 @@ func (st *uiPrefsStore) applyPatch(p prefsPatch) UIPrefs {
 	}
 	if p.FontSize != nil && *p.FontSize >= 12 && *p.FontSize <= 26 {
 		st.prefs.FontSize = *p.FontSize
+	}
+	if p.FontFamily != nil {
+		st.prefs.FontFamily = normalizeFontFamily(*p.FontFamily)
+	}
+	if p.ContentWidth != nil {
+		st.prefs.ContentWidth = normalizeContentWidth(*p.ContentWidth)
 	}
 	if p.SidebarHidden != nil {
 		st.prefs.SidebarHidden = *p.SidebarHidden

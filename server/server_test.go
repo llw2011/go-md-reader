@@ -159,12 +159,12 @@ func TestTypedTrayUIPrefsAndNotepadRPC(t *testing.T) {
 	}
 
 	// UI prefs patch + persistence check
-	patchBody := json.RawMessage(`{"theme":"dark","fontSize":18,"sidebarHidden":true,"scrollPath":"C:\\docs\\a.md","scrollTop":420}`)
+	patchBody := json.RawMessage(`{"theme":"nord","fontSize":18,"fontFamily":"serif","contentWidth":"narrow","sidebarHidden":true,"scrollPath":"C:\\docs\\a.md","scrollTop":420}`)
 	if _, err := srv.HandleRPC(ctx, "prefs.update", patchBody); err != nil {
 		t.Fatalf("prefs.update failed: %v", err)
 	}
 	reloaded := newUIPrefsStore(prefsFile).get()
-	if reloaded.Theme != "dark" || reloaded.FontSize != 18 || !reloaded.SidebarHidden || reloaded.ScrollPositions[`C:\docs\a.md`] != 420 {
+	if reloaded.Theme != "nord" || reloaded.FontSize != 18 || reloaded.FontFamily != "serif" || reloaded.ContentWidth != "narrow" || !reloaded.SidebarHidden || reloaded.ScrollPositions[`C:\docs\a.md`] != 420 {
 		t.Fatalf("unexpected reloaded UIPrefs: %+v", reloaded)
 	}
 

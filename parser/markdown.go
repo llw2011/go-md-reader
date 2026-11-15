@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	mathjax "github.com/litao91/goldmark-mathjax"
 	"github.com/yuin/goldmark"
 	emoji "github.com/yuin/goldmark-emoji"
@@ -58,7 +59,9 @@ func NewMarkdownParserWithMediaPrefix(prefix string) *MarkdownParser {
 			emoji.Emoji,
 			mathjax.MathJax,
 			highlighting.NewHighlighting(
-				highlighting.WithStyle("github"),
+				highlighting.WithFormatOptions(
+					chromahtml.WithClasses(true),
+				),
 			),
 		),
 		goldmark.WithParserOptions(

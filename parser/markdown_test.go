@@ -89,3 +89,21 @@ func TestParseEmojiShortcodesAndMathDelimiters(t *testing.T) {
 		t.Fatalf("expected preserved block math, got HTML:\n%s", res.HTML)
 	}
 }
+
+func TestCodeHighlightingUsesThemeClassesAndPreservesMermaid(t *testing.T) {
+	p := NewMarkdownParser()
+	md := "```go\npackage main\nfunc main() { println(\"hi\") }\n```\n\n```mermaid\ngraph TD\n  A-->B\n```\n"
+	res, err := p.Parse([]byte(md))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if !strings.Contains(res.HTML, `class="chroma"`) {
+		t.Fatalf("expected CSS class-based .chroma highlighting, got HTML:\n%s", res.HTML)
+	}
+	if strings.Contains(res.HTML, `style="color:`) {
+		t.Fatalf("unexpected inline style color attributes on highlighted code, got HTML:\n%s", res.HTML)
+	}
+	if !strings.Contains(res.HTML, `language-mermaid`) {
+		t.Fatalf("expected preserved mermaid code fence class, got HTML:\n%s", res.HTML)
+	}
+}

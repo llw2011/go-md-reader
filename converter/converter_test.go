@@ -82,3 +82,57 @@ func TestXlsxConversion(t *testing.T) {
 		t.Errorf("Expected markdown to contain sheet data, got:\n%s", res.Markdown)
 	}
 }
+
+func TestHTMLToMarkdownConversion(t *testing.T) {
+	htmlDoc := `<!DOCTYPE html><html><head><title>Ignored</title><style>body{}</style></head><body><h1>项目简介</h1><p>访问 <a href="https://example.com">官网</a> 获取<strong>更多</strong>信息。</p></body></html>`
+	res := ConvertToMarkdown("guide.html", []byte(htmlDoc))
+	if !res.IsConverted || res.FormatNote != "HTML 网页转换" {
+		t.Fatalf("expected HTML conversion result, got %+v", res)
+	}
+	if !strings.Contains(res.Markdown, "# 项目简介") || !strings.Contains(res.Markdown, "[官网](https://example.com)") {
+		t.Fatalf("unexpected HTML->Markdown output:\n%s", res.Markdown)
+	}
+}
+
+func TestEpubConversion(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+
+	cw, _ := zw.Create("META-INF/container.xml")
+	_, _ = cw.Write([]byte(`<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`))
+
+	ow, _ := zw.Create("OEBPS/content.opf")
+	_, _ = ow.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Go 并发之美</dc:title>
+    <dc:creator>Gopher</dc:creator>
+  </metadata>
+  <manifest>
+    <item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="ch2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="c1"/>
+    <itemref idref="c2"/>
+  </spine>
+</package>`))
+
+	ch1, _ := zw.Create("OEBPS/ch1.xhtml")
+	_, _ = ch1.Write([]byte(`<html><body><h2>第一章 Goroutine</h2><p>轻量协程示例。</p></body></html>`))
+
+	ch2, _ := zw.Create("OEBPS/ch2.xhtml")
+	_, _ = ch2.Write([]byte(`<html><body><h2>第二章 Channel</h2><p>通过通信共享内存。</p></body></html>`))
+
+	zw.Close()
+
+	res := ConvertToMarkdown("concurrency.epub", buf.Bytes())
+	if !res.IsConverted || res.FormatNote != "EPUB 电子书转换" {
+		t.Fatalf("expected EPUB conversion result, got %+v", res)
+	}
+	for _, want := range []string{"# Go 并发之美", "Gopher", "## 第一章 Goroutine", "## 第二章 Channel", "通过通信共享内存"} {
+		if !strings.Contains(res.Markdown, want) {
+			t.Fatalf("expected %q in EPUB Markdown:\n%s", want, res.Markdown)
+		}
+	}
+}

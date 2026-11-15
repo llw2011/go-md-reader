@@ -82,6 +82,30 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 		}
 	}
 
+	if ext == ".epub" || (isZip && isEpubZip(data)) {
+		md, err := EpubToMarkdown(bytes.NewReader(data), int64(len(data)))
+		if err == nil && len(strings.TrimSpace(md)) > 0 {
+			banner := "> [!TIP]\n> 📚 **已自动将 EPUB 电子书转换为 Markdown 阅读视图**（可点击工具栏『导出 -> 另存为 .md』保存）。\n\n"
+			return Result{
+				Markdown:    banner + md,
+				IsConverted: true,
+				FormatNote:  "EPUB 电子书转换",
+			}
+		}
+	}
+
+	// 1b. Standalone HTML documents -> readable Markdown
+	if ext == ".html" || ext == ".htm" {
+		if md, err := HTMLToMarkdown(string(data)); err == nil && md != "" {
+			banner := "> [!TIP]\n> 🌐 **已自动将 HTML 网页转换为 Markdown 阅读视图**（可点击工具栏『导出 -> 另存为 .md』保存）。\n\n"
+			return Result{
+				Markdown:    banner + md,
+				IsConverted: true,
+				FormatNote:  "HTML 网页转换",
+			}
+		}
+	}
+
 	// 2. CSV / TSV Table Conversion
 	if ext == ".csv" || ext == ".tsv" {
 		sep := ','
@@ -169,8 +193,6 @@ func detectCodeLanguage(ext string) string {
 		return "ini"
 	case ".css":
 		return "css"
-	case ".html", ".htm":
-		return "html"
 	default:
 		return ""
 	}

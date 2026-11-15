@@ -71,3 +71,21 @@ func TestParseThematicBreakNotTreatedAsFrontmatter(t *testing.T) {
 		t.Fatalf("unexpected frontmatter block for horizontal rule")
 	}
 }
+
+func TestParseEmojiShortcodesAndMathDelimiters(t *testing.T) {
+	p := NewMarkdownParser()
+	md := "Launch :rocket: with $a_i + b_j = c_k$\n\n$$\n\\sum_{i=1}^{n} x_i^2\n$$\n"
+	res, err := p.Parse([]byte(md))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if strings.Contains(res.HTML, "cdn.jsdelivr.net") || strings.Contains(res.HTML, ":rocket:") {
+		t.Fatalf("expected offline emoji entity without CDN or literal :rocket:, got HTML:\n%s", res.HTML)
+	}
+	if !strings.Contains(res.HTML, `class="math inline"`) || !strings.Contains(res.HTML, `a_i + b_j = c_k`) {
+		t.Fatalf("expected preserved inline math without <em> mangling, got HTML:\n%s", res.HTML)
+	}
+	if !strings.Contains(res.HTML, `class="math display"`) || !strings.Contains(res.HTML, `\sum_{i=1}^{n} x_i^2`) {
+		t.Fatalf("expected preserved block math, got HTML:\n%s", res.HTML)
+	}
+}

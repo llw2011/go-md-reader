@@ -6,7 +6,9 @@ import (
 	"net/url"
 	"strings"
 
+	mathjax "github.com/litao91/goldmark-mathjax"
 	"github.com/yuin/goldmark"
+	emoji "github.com/yuin/goldmark-emoji"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -53,6 +55,8 @@ func NewMarkdownParserWithMediaPrefix(prefix string) *MarkdownParser {
 		goldmark.WithExtensions(
 			extension.GFM,
 			extension.Footnote,
+			emoji.Emoji,
+			mathjax.MathJax,
 			highlighting.NewHighlighting(
 				highlighting.WithStyle("github"),
 			),

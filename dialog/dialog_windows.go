@@ -79,11 +79,12 @@ func SelectMarkdownFile() (string, error) {
 	var ofn openFileNameW
 	ofn.StructSize = uint32(unsafe.Sizeof(ofn))
 
-	filterStr := "支持的全部文档 (*.md;*.docx;*.xlsx;*.pptx;*.csv;*.txt;*.json)\x00*.md;*.markdown;*.docx;*.xlsx;*.pptx;*.csv;*.tsv;*.txt;*.json;*.yaml;*.yml;*.doc;*.xls\x00" +
+	filterStr := "支持的全部文档 (*.md;*.docx;*.xlsx;*.pptx;*.epub;*.html;*.csv;*.txt;*.json)\x00*.md;*.markdown;*.docx;*.xlsx;*.pptx;*.epub;*.html;*.htm;*.csv;*.tsv;*.txt;*.json;*.yaml;*.yml;*.doc;*.xls\x00" +
 		"Markdown 文档 (*.md;*.markdown)\x00*.md;*.markdown\x00" +
 		"Word 文档 (*.docx;*.doc)\x00*.docx;*.doc\x00" +
 		"Excel / 表格 (*.xlsx;*.xls;*.csv;*.tsv)\x00*.xlsx;*.xls;*.csv;*.tsv\x00" +
 		"PPT 演示文稿 (*.pptx)\x00*.pptx\x00" +
+		"EPUB / HTML 文档 (*.epub;*.html;*.htm)\x00*.epub;*.html;*.htm\x00" +
 		"所有文件 (*.*)\x00*.*\x00\x00"
 
 	filterPtr, filterKeep := encodeMultiSZ(filterStr)

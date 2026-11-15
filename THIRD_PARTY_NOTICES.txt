@@ -1,0 +1,36 @@
+Go Markdown Reader - Third-Party Open Source Notices
+
+This software incorporates or provides optional on-demand access to the following
+MIT-licensed open-source components:
+
+1. goldmark
+   Copyright (c) 2019 Yusuke Inuzuka
+   License: MIT (https://github.com/yuin/goldmark)
+
+2. goldmark-highlighting
+   Copyright (c) 2019 Yusuke Inuzuka
+   License: MIT (https://github.com/yuin/goldmark-highlighting)
+
+3. goldmark-emoji
+   Copyright (c) 2019 Yusuke Inuzuka
+   License: MIT (https://github.com/yuin/goldmark-emoji)
+
+4. goldmark-mathjax
+   Copyright (c) 2020 Tao Li
+   License: MIT (https://github.com/litao91/goldmark-mathjax)
+
+5. chroma
+   Copyright (c) 2017 Alec Thomas
+   License: MIT (https://github.com/alecthomas/chroma)
+
+6. html-to-markdown
+   Copyright (c) 2020 Johannes Kaufmann
+   License: MIT (https://github.com/JohannesKaufmann/html-to-markdown)
+
+7. KaTeX (Optional On-Demand Local Addon, v0.19.1)
+   Copyright (c) Khan Academy and other contributors
+   License: MIT (https://github.com/KaTeX/KaTeX)
+
+8. Mermaid (Optional On-Demand Local Addon, v12.3.0)
+   Copyright (c) Knut Sveidqvist
+   License: MIT (https://github.com/mermaid-js/mermaid)

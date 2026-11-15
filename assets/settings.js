@@ -33,15 +33,14 @@ function renderNotepadStatus(st) {
   if (!txtEl || !btn) return;
 
   if (currentNotepadReplaced) {
-    const scope = st.systemWide ? "系统级 + 当前用户已接管" : "当前用户已接管";
-    txtEl.textContent = `✓ 已替换 (${scope}) — 可随时一键恢复原生记事本`;
+    txtEl.textContent = "✓ 已设为默认记事本，点击右侧可恢复原样";
     txtEl.style.color = "#10b981";
-    btn.textContent = "🔄 恢复系统记事本";
+    btn.textContent = "🔄 恢复原样";
     btn.className = "btn";
   } else {
-    txtEl.textContent = "未替换（当前使用 Windows 原生记事本）";
+    txtEl.textContent = "未设置（当前使用系统记事本）";
     txtEl.style.color = "var(--text-muted)";
-    btn.textContent = "📝 替换记事本";
+    btn.textContent = "📝 设为默认记事本";
     btn.className = "btn btn-primary";
   }
 }
@@ -51,7 +50,7 @@ async function toggleNotepadReplacement() {
   const wantReplace = !currentNotepadReplaced;
   if (wantReplace) {
     const confirmed = window.confirm(
-      "替换 Windows 记事本将写入系统级 IFEO 注册表项（需 UAC 管理员授权）并接管 notepad.exe 启动。\n卸载或再次点击可随时恢复默认记事本。确定继续吗？"
+      "将用本软件替代系统记事本（需要管理员权限），随时可恢复原样。\n确定继续吗？"
     );
     if (!confirmed) return;
   }
@@ -59,9 +58,9 @@ async function toggleNotepadReplacement() {
   try {
     const data = await rpcCall("assoc.notepad.set", { replace: wantReplace });
     renderNotepadStatus(data.status);
-    showToast(wantReplace ? "✓ 已将系统记事本替换为 Go Markdown Reader" : "✓ 已恢复 Windows 系统默认记事本");
+    showToast(wantReplace ? "✓ 已设为默认记事本" : "✓ 已恢复系统记事本");
   } catch (err) {
-    showToast("❌ 操作记事本设置异常: " + err.message);
+    showToast("❌ 设置失败: " + err.message);
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -139,9 +138,9 @@ async function saveAssocSettings() {
       rpcCall("tray.set", { minimizeToTray })
     ]);
     closeAssocModal();
-    showToast(`✓ 已保存设置并应用 ${selectedExts.length} 项文件格式关联！`);
+    showToast("✓ 设置已保存");
   } catch (err) {
-    showToast("❌ 关联设置异常: " + err.message);
+    showToast("❌ 保存失败: " + err.message);
   }
 }
 
@@ -170,7 +169,7 @@ function resetOTAProgress() {
     fill.style.width = "0%";
   }
   if (track) track.setAttribute("aria-valuenow", "0");
-  if (phaseEl) phaseEl.textContent = "正在准备下载...";
+  if (phaseEl) phaseEl.textContent = "准备下载...";
   if (statsEl) statsEl.textContent = "0%";
 }
 
@@ -197,7 +196,7 @@ function renderOTAProgress(progress) {
     fill.classList.add("done");
     fill.style.width = "100%";
     if (track) track.setAttribute("aria-valuenow", "100");
-    phaseEl.textContent = progress.reusedCache ? "已命中本地校验缓存 ✓" : "下载与校验完成 ✓";
+    phaseEl.textContent = "下载完成 ✓";
     statsEl.textContent = total > 0 ? `100% (${formatBytesMB(total)})` : "100%";
     return;
   }
@@ -205,18 +204,18 @@ function renderOTAProgress(progress) {
   if (progress.phase === "verifying") {
     fill.style.width = "100%";
     if (track) track.setAttribute("aria-valuenow", "100");
-    phaseEl.textContent = "正在校验 SHA-256 完整性...";
+    phaseEl.textContent = "校验文件中...";
     statsEl.textContent = total > 0 ? `100% (${formatBytesMB(downloaded)})` : "100%";
     return;
   }
 
   if (progress.phase === "error") {
-    phaseEl.textContent = "下载中断，可重试（支持断点重下）";
+    phaseEl.textContent = "下载中断，可重试";
     statsEl.textContent = pct >= 0 ? `${pct}%` : formatBytesMB(downloaded);
     return;
   }
 
-  phaseEl.textContent = "正在下载更新包...";
+  phaseEl.textContent = "下载中...";
   if (pct >= 0 && total > 0) {
     const clamped = Math.max(0, Math.min(100, pct));
     fill.style.width = `${clamped}%`;
@@ -233,10 +232,8 @@ function showStagedReadyUI(st) {
   const applyBtn = document.getElementById("btn-ota-apply");
   const dlBtn = document.getElementById("btn-ota-download");
   const assetInfoEl = document.getElementById("ota-asset-info");
-  const verifyText = st.verifiedSha256 ? "SHA-256 校验通过 ✓" : "已完成校验 ✓";
-  const cacheTag = st.reusedCache ? " (本地缓存)" : "";
   if (assetInfoEl) {
-    assetInfoEl.textContent = `就绪: ${st.assetName} · ${verifyText}${cacheTag}`;
+    assetInfoEl.textContent = `已就绪: ${st.assetName}`;
   }
   if (dlBtn) dlBtn.style.display = "none";
   if (applyBtn) applyBtn.style.display = "inline-flex";
@@ -292,7 +289,7 @@ async function checkOTAUpdate() {
   const applyBtn = document.getElementById("btn-ota-apply");
 
   btn.disabled = true;
-  btn.textContent = "⏳ 正在检查最新版本...";
+  btn.textContent = "⏳ 检查中...";
   dlBtn.style.display = "none";
   applyBtn.style.display = "none";
   resetOTAProgress();
@@ -309,7 +306,7 @@ async function checkOTAUpdate() {
     notesEl.textContent = r.releaseNotes || "";
 
     if (r.hasUpdate) {
-      statusLine.textContent = `🎉 发现新版本: ${r.latestVersion} (${r.releaseName || ""})`;
+      statusLine.textContent = `🎉 发现新版本: ${r.latestVersion}`;
       statusLine.style.color = "#10b981";
       if (data.staged) {
         renderOTAProgress({
@@ -322,14 +319,13 @@ async function checkOTAUpdate() {
         showStagedReadyUI(data.staged);
       } else if (r.asset) {
         const mb = (r.asset.size / (1024 * 1024)).toFixed(2);
-        const shaNote = r.asset.sha256 ? " · 支持 SHA-256 校验" : "";
-        assetInfoEl.textContent = `匹配更新包: ${r.asset.name} (${mb} MB${shaNote})`;
+        assetInfoEl.textContent = `安装包: ${r.asset.name} (${mb} MB)`;
         dlBtn.style.display = "inline-flex";
       } else {
-        assetInfoEl.textContent = "该 Release 未附带 .exe 更新包资产";
+        assetInfoEl.textContent = "该版本暂无可用安装包";
       }
     } else {
-      statusLine.textContent = `✓ 当前已是最新版本 (${r.currentVersion}，远端 ${r.latestVersion})`;
+      statusLine.textContent = `✓ 已是最新版本 (${r.currentVersion})`;
       statusLine.style.color = "var(--text-main)";
       assetInfoEl.textContent = "";
     }
@@ -342,7 +338,7 @@ async function checkOTAUpdate() {
   } finally {
     otaCheckInFlight = false;
     btn.disabled = false;
-    btn.textContent = "🔍 检查最新版本";
+    btn.textContent = "🔍 检查更新";
   }
 }
 
@@ -356,7 +352,7 @@ async function downloadOTAUpdate() {
 
   dlBtn.disabled = true;
   if (checkBtn) checkBtn.disabled = true;
-  dlBtn.textContent = "⏳ 正在下载与校验...";
+  dlBtn.textContent = "⏳ 下载中...";
   renderOTAProgress({ phase: "downloading", percent: 0, bytesDownloaded: 0, totalBytes: 0 });
 
   try {
@@ -364,15 +360,15 @@ async function downloadOTAUpdate() {
     const st = data.staged;
     renderOTAProgress({ phase: "ready", percent: 100, reusedCache: !!st.reusedCache });
     showStagedReadyUI(st);
-    showToast(st.reusedCache ? "✓ 已复用本地校验缓存，可直接安装重启" : "✓ 更新包已下载并校验完成，可点击安装重启");
+    showToast("✓ 安装包已就绪，点击即可更新重启");
   } catch (err) {
     renderOTAProgress({ phase: "error", percent: 0, bytesDownloaded: 0, totalBytes: 0 });
-    showToast("❌ 下载异常: " + err.message);
+    showToast("❌ 下载失败: " + err.message);
   } finally {
     otaDownloadInFlight = false;
     dlBtn.disabled = false;
     if (checkBtn) checkBtn.disabled = false;
-    dlBtn.textContent = "⬇️ 下载并校验更新";
+    dlBtn.textContent = "⬇️ 下载更新";
     if (applyBtn && applyBtn.style.display !== "none") {
       dlBtn.style.display = "none";
     }
@@ -385,14 +381,14 @@ async function applyOTAUpdate() {
 
   const applyBtn = document.getElementById("btn-ota-apply");
   applyBtn.disabled = true;
-  applyBtn.textContent = "⏳ 正在替换并重启...";
+  applyBtn.textContent = "⏳ 正在重启...";
   try {
     await rpcCall("ota.apply");
   } catch (err) {
     otaApplyInFlight = false;
-    showToast("❌ 应用更新异常: " + err.message);
+    showToast("❌ 更新失败: " + err.message);
     applyBtn.disabled = false;
-    applyBtn.textContent = "🚀 立即安装并重启";
+    applyBtn.textContent = "🚀 立即更新并重启";
   }
 }
 

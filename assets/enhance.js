@@ -292,10 +292,10 @@ function initDragDrop() {
         name: file.name,
         dataBase64: arrayBufferToBase64(buf)
       });
-      showToast(`✓ 已导入并解析: ${file.name}`);
+      showToast(`✓ 已打开: ${file.name}`);
       loadFile(false);
     } catch (err) {
-      showToast("❌ 读取拖拽文件失败: " + err.message);
+      showToast("❌ 打开文件失败: " + err.message);
     }
   });
 }
@@ -311,11 +311,11 @@ function copyMarkdownSource() {
   const textarea = document.getElementById("editor-textarea");
   const md = (isEditorOpen && textarea && textarea.value) ? textarea.value : (currentDocData ? currentDocData.rawContent : "");
   if (!md) {
-    showToast("⚠️ 当前无 Markdown 源码可复制");
+    showToast("⚠️ 没有可复制的内容");
     return;
   }
   navigator.clipboard.writeText(md).then(() => {
-    showToast("✓ 已复制全文 Markdown 源码到剪贴板");
+    showToast("✓ 已复制 Markdown 源码");
   });
 }
 
@@ -323,18 +323,18 @@ function copyPlainText() {
   closeAllDropdowns();
   const contentEl = document.getElementById("content");
   if (!contentEl || !currentDocData || !currentDocData.hasFile) {
-    showToast("⚠️ 当前无文本内容可复制");
+    showToast("⚠️ 没有可复制的文字");
     return;
   }
   navigator.clipboard.writeText(contentEl.innerText).then(() => {
-    showToast("✓ 已复制全文纯文本到剪贴板");
+    showToast("✓ 已复制纯文本");
   });
 }
 
 async function exportStandaloneHTML() {
   closeAllDropdowns();
   if (!currentDocData || !currentDocData.html) {
-    showToast("⚠️ 当前无已加载的文档可导出");
+    showToast("⚠️ 没有可导出的文档");
     return;
   }
 
@@ -372,12 +372,12 @@ ${cssText}
       filename: currentDocData.filename || "document"
     });
     if (saveData.saved) {
-      showToast(`✓ 已导出独立离线 HTML 文件: ${saveData.path}`);
+      showToast(`✓ 已导出网页: ${saveData.path}`);
     } else if (saveData.error) {
-      showToast("❌ 导出 HTML 失败: " + saveData.error);
+      showToast("❌ 导出失败: " + saveData.error);
     }
     return;
   } catch (err) {
-    showToast("❌ 导出 HTML 失败: " + err.message);
+    showToast("❌ 导出失败: " + err.message);
   }
 }

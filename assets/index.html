@@ -30,7 +30,7 @@
         <span class="titlebar-brand">Go Markdown Reader</span>
         <span class="titlebar-sep" aria-hidden="true"></span>
         <span class="titlebar-doc" id="titlebar-doc-name">就绪</span>
-        <span class="titlebar-ver-pill">v2.4.0</span>
+        <span class="titlebar-ver-pill">v2.4.1</span>
       </div>
 
       <div class="titlebar-spacer" aria-hidden="true"></div>
@@ -68,13 +68,13 @@
 
       <div class="toolbar-right">
         <div class="toolbar-group" role="group" aria-label="视图与排版">
-          <button type="button" class="btn" id="edit-btn" aria-pressed="false" onclick="toggleEditor()" title="双栏源码编辑与转换预览 (Ctrl+E)">✏️ 编辑/源码</button>
-          <button type="button" class="btn" id="format-btn" onclick="autoFormatDocument()" title="Markdown 自动排版与中英文间距规范化 (Ctrl+Shift+F)">✨ 排版</button>
-          <button type="button" class="btn" id="wide-btn" aria-pressed="false" onclick="toggleWideMode()" title="切换标准/全宽表格视图">↔️ 宽屏</button>
-          <button type="button" class="btn" onclick="toggleSearch()" title="页面内全文检索 (Ctrl+F)">🔍 搜索</button>
+          <button type="button" class="btn" id="edit-btn" aria-pressed="false" onclick="toggleEditor()" title="编辑文档 (Ctrl+E)">✏️ 编辑/源码</button>
+          <button type="button" class="btn" id="format-btn" onclick="autoFormatDocument()" title="一键排版 (Ctrl+Shift+F)">✨ 排版</button>
+          <button type="button" class="btn" id="wide-btn" aria-pressed="false" onclick="toggleWideMode()" title="切换宽屏视图">↔️ 宽屏</button>
+          <button type="button" class="btn" onclick="toggleSearch()" title="查找文字 (Ctrl+F)">🔍 搜索</button>
           <button type="button" class="btn btn-compact" onclick="adjustFontSize(-1)" aria-label="缩小字号" title="缩小字号 (Ctrl + -)">A-</button>
           <button type="button" class="btn btn-compact" onclick="adjustFontSize(1)" aria-label="放大字号" title="放大字号 (Ctrl + +)">A+</button>
-          <button type="button" class="btn" onclick="cycleTheme()" id="theme-btn" title="切换护眼/深浅色主题">
+          <button type="button" class="btn" onclick="cycleTheme()" id="theme-btn" title="切换阅读主题">
             <span id="theme-icon">☀️ 浅色</span>
           </button>
         </div>
@@ -84,34 +84,34 @@
         <div class="toolbar-group" role="group" aria-label="导出与系统设置">
           <!-- Export Suite Dropdown -->
           <div class="dropdown">
-            <button type="button" class="btn" id="export-btn" aria-haspopup="menu" aria-expanded="false" onclick="toggleDropdown('export-menu', event)" title="导出与转换工具箱">📤 导出 ▾</button>
+            <button type="button" class="btn" id="export-btn" aria-haspopup="menu" aria-expanded="false" onclick="toggleDropdown('export-menu', event)" title="导出与复制">📤 导出 ▾</button>
             <ul class="dropdown-menu dropdown-right" id="export-menu" role="menu" aria-label="导出选项">
               <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="saveAsMarkdown()">
                 <span class="dropdown-item-name">💾 另存为 Markdown (.md)</span>
-                <span class="dropdown-item-path">将当前文档或 Word/Excel 转换结果存为 .md</span>
+                <span class="dropdown-item-path">保存为 .md 文档</span>
               </li>
               <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="exportStandaloneHTML()">
-                <span class="dropdown-item-name">🌐 导出独立离线网页 (.html)</span>
-                <span class="dropdown-item-path">单文件打包所有样式，任意浏览器即开即看</span>
+                <span class="dropdown-item-name">🌐 导出网页文件 (.html)</span>
+                <span class="dropdown-item-path">生成单个网页，浏览器可直接打开</span>
               </li>
               <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="copyMarkdownSource()">
-                <span class="dropdown-item-name">📋 复制全文 Markdown 源码</span>
-                <span class="dropdown-item-path">复制转换后的纯正 Markdown 文本到剪贴板</span>
+                <span class="dropdown-item-name">📋 复制 Markdown 源码</span>
+                <span class="dropdown-item-path">复制带格式标记的原文</span>
               </li>
               <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="copyPlainText()">
-                <span class="dropdown-item-name">📄 复制全文纯文本</span>
-                <span class="dropdown-item-path">复制去除排版符号后的纯文字内容</span>
+                <span class="dropdown-item-name">📄 复制纯文本</span>
+                <span class="dropdown-item-path">只复制文字，不带格式符号</span>
               </li>
               <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="triggerPrint()">
-                <span class="dropdown-item-name">🖨️ A4 打印 / 另存为 PDF (Ctrl+P)</span>
-                <span class="dropdown-item-path">防断页标准 A4 纸张排版打印</span>
+                <span class="dropdown-item-name">🖨️ 打印 / 存为 PDF (Ctrl+P)</span>
+                <span class="dropdown-item-path">按 A4 纸张排版打印或保存 PDF</span>
               </li>
             </ul>
           </div>
 
-          <button type="button" class="btn" onclick="showAddonsModal()" title="管理按需离线扩展包 (KaTeX / Mermaid · MIT)">🧩 扩展</button>
-          <button type="button" class="btn" onclick="showAssocModal()" title="配置文件格式默认关联 (.md / .txt 等) 与托盘偏好">⚙️ 关联</button>
-          <button type="button" class="btn" onclick="showOTAModal()" title="在线检查更新与版本管理">☁️ 更新</button>
+          <button type="button" class="btn" onclick="showAddonsModal()" title="扩展功能">🧩 扩展</button>
+          <button type="button" class="btn" onclick="showAssocModal()" title="默认打开方式与设置">⚙️ 关联</button>
+          <button type="button" class="btn" onclick="showOTAModal()" title="检查更新">☁️ 更新</button>
           <button type="button" class="btn btn-icon" onclick="loadFile(true)" aria-label="刷新文档" title="刷新文档 (F5)">🔄</button>
         </div>
       </div>
@@ -172,7 +172,7 @@
           <button type="button" class="btn" onclick="saveAsMarkdown()" title="另存为新 .md 文件">📥 另存为</button>
         </div>
       </div>
-      <textarea class="editor-textarea" id="editor-textarea" placeholder="在此输入或编辑 Markdown 源码，右侧将实时同步预览..." oninput="handleEditorInput()"></textarea>
+      <textarea class="editor-textarea" id="editor-textarea" placeholder="在这里输入内容，右侧实时预览..." oninput="handleEditorInput()"></textarea>
     </section>
 
     <!-- Main Content Area -->
@@ -225,11 +225,11 @@
   <div class="modal-backdrop" id="assoc-modal" role="dialog" aria-modal="true" aria-labelledby="assoc-modal-title" onclick="closeAssocModal(event)">
     <div class="stats-card stats-card-wide" onclick="event.stopPropagation()">
       <div class="stats-card-header">
-        <div class="stats-card-title" id="assoc-modal-title">⚙️ 默认文件格式关联设置</div>
-        <button type="button" class="stats-card-close" onclick="closeAssocModal()" aria-label="关闭文件格式关联设置">&times;</button>
+        <div class="stats-card-title" id="assoc-modal-title">⚙️ 默认打开方式与设置</div>
+        <button type="button" class="stats-card-close" onclick="closeAssocModal()" aria-label="关闭设置">&times;</button>
       </div>
       <div class="modal-subtitle">
-        完全透明可控：仅关联您勾选的格式。取消勾选时将自动还原系统原有默认打开方式。
+        勾选后双击即可用本软件打开，取消勾选自动还原。
       </div>
       <div id="assoc-list-container" class="assoc-grid">
         <!-- Populated dynamically -->
@@ -237,29 +237,29 @@
       <div class="modal-pref-group">
         <label class="choice-row">
           <input type="checkbox" id="assoc-ctx-menu" checked>
-          <span>添加到 Windows 系统右键菜单（“使用 Go Markdown Reader 打开”）</span>
+          <span>添加到鼠标右键菜单</span>
         </label>
         <label class="choice-row">
           <input type="checkbox" id="pref-minimize-tray" checked>
-          <span>点击右上角关闭按钮时最小化到系统托盘（可通过托盘彻底退出）</span>
+          <span>关闭窗口时最小化到系统托盘</span>
         </label>
       </div>
       <div class="notepad-card">
         <div style="min-width:0;">
-          <div class="notepad-title">📝 替换 Windows 系统记事本 (Notepad)</div>
-          <div id="notepad-status-text" class="notepad-status">正在检测系统记事本状态...</div>
+          <div class="notepad-title">📝 设为默认记事本</div>
+          <div id="notepad-status-text" class="notepad-status">检测中...</div>
         </div>
-        <button type="button" class="btn" id="btn-notepad-toggle" onclick="toggleNotepadReplacement()" style="white-space:nowrap;">替换记事本</button>
+        <button type="button" class="btn" id="btn-notepad-toggle" onclick="toggleNotepadReplacement()" style="white-space:nowrap;">设为默认记事本</button>
       </div>
       <div class="modal-footer-bar">
         <div class="modal-btn-group">
-          <button type="button" class="btn" onclick="selectAssocPreset('recommended')">推荐 (.md + .txt)</button>
-          <button type="button" class="btn" onclick="selectAssocPreset('all')">全选文本/配置</button>
+          <button type="button" class="btn" onclick="selectAssocPreset('recommended')">常用 (.md/.txt)</button>
+          <button type="button" class="btn" onclick="selectAssocPreset('all')">全选文本文件</button>
           <button type="button" class="btn" onclick="selectAssocPreset('none')">全部取消</button>
         </div>
         <div class="modal-btn-group">
           <button type="button" class="btn" onclick="closeAssocModal()">取消</button>
-          <button type="button" class="btn btn-primary" onclick="saveAssocSettings()">💾 应用关联设置</button>
+          <button type="button" class="btn btn-primary" onclick="saveAssocSettings()">💾 保存设置</button>
         </div>
       </div>
     </div>
@@ -269,24 +269,24 @@
   <div class="modal-backdrop" id="ota-modal" role="dialog" aria-modal="true" aria-labelledby="ota-modal-title" onclick="closeOTAModal(event)">
     <div class="stats-card stats-card-ota" onclick="event.stopPropagation()">
       <div class="stats-card-header">
-        <div class="stats-card-title" id="ota-modal-title">☁️ 在线检查更新</div>
-        <button type="button" class="stats-card-close" onclick="closeOTAModal()" aria-label="关闭在线更新">&times;</button>
+        <div class="stats-card-title" id="ota-modal-title">☁️ 检查更新</div>
+        <button type="button" class="stats-card-close" onclick="closeOTAModal()" aria-label="关闭检查更新">&times;</button>
       </div>
 
       <div class="ota-meta-row">
-        <span>仅在您主动点击检查时获取官方最新版本，零静默外联。</span>
-        <span class="version-pill">当前版本: <code id="ota-current-ver">v2.4.0</code></span>
+        <span>点击下方按钮检查是否有新版本。</span>
+        <span class="version-pill">当前版本: <code id="ota-current-ver">v2.4.1</code></span>
       </div>
 
       <div class="ota-form-stack">
         <label class="choice-row">
           <input type="checkbox" id="ota-prerelease" onchange="saveOTAPrerelease()">
-          <span>包含 Pre-release 预发布测试版本</span>
+          <span>接收测试版更新</span>
         </label>
       </div>
 
       <div style="display:flex; gap:8px; justify-content:flex-end; margin-bottom: 12px;">
-        <button type="button" class="btn btn-primary" id="btn-ota-check" onclick="checkOTAUpdate()">🔍 检查最新版本</button>
+        <button type="button" class="btn btn-primary" id="btn-ota-check" onclick="checkOTAUpdate()">🔍 检查更新</button>
       </div>
 
       <div id="ota-result-box" class="ota-result-box" style="display:none;">
@@ -294,7 +294,7 @@
         <pre id="ota-release-notes" class="ota-notes"></pre>
         <div id="ota-progress-wrap" class="ota-progress-wrap" style="display:none;">
           <div class="ota-progress-head">
-            <span id="ota-progress-phase">正在下载更新包...</span>
+            <span id="ota-progress-phase">下载中...</span>
             <span id="ota-progress-stats">0%</span>
           </div>
           <div class="ota-progress-track" id="ota-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
@@ -304,27 +304,27 @@
         <div id="ota-action-row" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <span id="ota-asset-info" style="font-size: 12px; color: var(--text-muted);"></span>
           <div style="display:flex; gap:8px;">
-            <button type="button" class="btn btn-primary" id="btn-ota-download" style="display:none;" onclick="downloadOTAUpdate()">⬇️ 下载并校验更新</button>
-            <button type="button" class="btn btn-success" id="btn-ota-apply" style="display:none;" onclick="applyOTAUpdate()">🚀 立即安装并重启</button>
+            <button type="button" class="btn btn-primary" id="btn-ota-download" style="display:none;" onclick="downloadOTAUpdate()">⬇️ 下载更新</button>
+            <button type="button" class="btn btn-success" id="btn-ota-apply" style="display:none;" onclick="applyOTAUpdate()">🚀 立即更新并重启</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Curated MIT Addons Modal -->
+  <!-- Addons Modal -->
   <div class="modal-backdrop" id="addons-modal" role="dialog" aria-modal="true" aria-labelledby="addons-modal-title" onclick="closeAddonsModal(event)">
     <div class="stats-card stats-card-assoc" onclick="event.stopPropagation()">
       <div class="stats-card-header">
-        <div class="stats-card-title" id="addons-modal-title">🧩 按需离线扩展包 (MIT)</div>
+        <div class="stats-card-title" id="addons-modal-title">🧩 扩展功能</div>
         <button type="button" class="stats-card-close" onclick="closeAddonsModal()" aria-label="关闭扩展管理">&times;</button>
       </div>
       <div class="modal-subtitle">
-        主程序默认零额外体积；所有扩展仅在您手动点击启用时拉取、强制 SHA-256 校验，此后完全离线运行于本地缓存。
+        按需安装，装好后无需联网即可使用。
       </div>
       <div id="addons-list" class="addons-list"></div>
       <div class="modal-footer-bar">
-        <span style="font-size:11.5px; color:var(--text-muted);">另已内置：Emoji 短代码 (:rocket:) · HTML / EPUB 转 Markdown</span>
+        <span style="font-size:11.5px; color:var(--text-muted);">已内置：Emoji 表情、网页 / EPUB 阅读</span>
         <button type="button" class="btn" onclick="closeAddonsModal()">关闭</button>
       </div>
     </div>
@@ -344,9 +344,9 @@
   <div id="drag-overlay">
     <div class="drag-card">
       <div style="font-size: 38px; margin-bottom: 10px;">📥</div>
-      松开鼠标即可在此打开或转换文档<br>
+      松开鼠标即可打开文档<br>
       <span style="font-size: 13px; font-weight: normal; opacity: 0.85;">
-        支持 Markdown (.md) · Word (.docx) · Excel (.xlsx) · PPT (.pptx) · CSV · JSON · 代码文件
+        支持 Markdown、Word、Excel、PPT、EPUB、网页、表格和代码文件
       </span>
     </div>
   </div>

@@ -32,17 +32,17 @@ async function loadFile(preserveScroll = false) {
       contentEl.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">📖</div>
-          <div class="empty-title">欢迎使用 Go 全能文档与 Markdown 阅读器</div>
+          <div class="empty-title">欢迎使用 Go Markdown Reader</div>
           <div class="empty-desc">
-            100% 本地离线运行 · 零外联 · 零遥测 · 毫秒级启动<br>
-            支持直接拖入或打开 <strong>Markdown (.md)</strong>、<strong>Word (.docx)</strong>、<strong>Excel (.xlsx)</strong>、<strong>PPT (.pptx)</strong>、<strong>EPUB / HTML / CSV / JSON / 代码</strong>
+            打开或拖入文档即可阅读<br>
+            支持 Markdown、Word、Excel、PPT、EPUB、网页与常见代码文件
           </div>
           <div class="empty-actions">
             <button type="button" class="btn btn-primary btn-lg" onclick="openFileDialog()">
-              📂 打开本地文档 (Ctrl+O)
+              📂 打开文档 (Ctrl+O)
             </button>
             <button type="button" class="btn btn-lg" onclick="toggleEditor()">
-              ✏️ 新建 / 编辑 Markdown (Ctrl+E)
+              ✏️ 新建笔记 (Ctrl+E)
             </button>
           </div>
         </div>
@@ -67,7 +67,7 @@ async function loadFile(preserveScroll = false) {
     const estMinutes = Math.max(1, Math.round(words / 350));
     let metaText = `${words.toLocaleString()} 字 · 约 ${estMinutes} 分钟`;
     if (data.isConverted) {
-      metaText = `✨ 已自动转换 · ` + metaText;
+      metaText = `✨ 已转换 · ` + metaText;
     }
     metaEl.textContent = metaText;
 

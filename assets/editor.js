@@ -67,7 +67,7 @@ async function autoFormatDocument() {
     : ((currentDocData && currentDocData.rawContent) || (textarea && textarea.value) || "");
 
   if (!rawSource.trim()) {
-    showToast("⚠️ 当前没有可排版的文档内容");
+    showToast("⚠️ 没有可排版的内容");
     return;
   }
 
@@ -77,7 +77,7 @@ async function autoFormatDocument() {
   try {
     const data = await rpcCall("doc.format", { content: rawSource });
     if (!data.changed) {
-      showToast("✓ 当前文档排版已很规整，无需调整");
+      showToast("✓ 排版已很整齐");
       return;
     }
 
@@ -116,9 +116,9 @@ async function autoFormatDocument() {
       metaEl.textContent = `✨ 已自动排版 · ${words.toLocaleString()} 字 · 约 ${estMinutes} 分钟`;
     }
 
-    showToast("✓ 已完成自动排版（Ctrl+Z 可撤销，Ctrl+S 保存）");
+    showToast("✓ 排版完成（Ctrl+Z 撤销，Ctrl+S 保存）");
   } catch (err) {
-    showToast("❌ 自动排版异常: " + err.message);
+    showToast("❌ 排版失败: " + err.message);
   } finally {
     if (fmtBtn) fmtBtn.disabled = false;
   }
@@ -136,7 +136,7 @@ async function saveCurrentContent() {
     const data = await rpcCall("doc.save", { mode: "save", content });
     if (data.saved) {
       isEditorDirty = false;
-      showToast(`✓ 已成功保存至: ${data.path}`);
+      showToast(`✓ 已保存: ${data.path}`);
       loadFile(true);
     } else if (data.error) {
       showToast("❌ 保存失败: " + data.error);
@@ -151,7 +151,7 @@ async function saveAsMarkdown() {
   const textarea = document.getElementById("editor-textarea");
   const content = (isEditorOpen && textarea && textarea.value) ? textarea.value : (currentDocData ? currentDocData.rawContent : "");
   if (!content) {
-    showToast("⚠️ 当前没有可导出的文档内容");
+    showToast("⚠️ 没有可导出的内容");
     return;
   }
 
@@ -159,7 +159,7 @@ async function saveAsMarkdown() {
   try {
     const data = await rpcCall("doc.save", { mode: "saveAs", content, filename: fname });
     if (data.saved) {
-      showToast(`✓ 已成功另存为: ${data.path}`);
+      showToast(`✓ 已另存为: ${data.path}`);
     } else if (data.error) {
       showToast("❌ 另存为失败: " + data.error);
     }

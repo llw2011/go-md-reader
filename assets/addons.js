@@ -134,10 +134,10 @@ async function enhanceRichMedia() {
 
   const missingPrompts = [];
   if (hasMath && (!katexState || !katexState.installed)) {
-    missingPrompts.push("📐 数学公式 (KaTeX · 约 0.5 MB)");
+    missingPrompts.push("数学公式");
   }
   if (hasMermaid && (!mermaidState || !mermaidState.installed)) {
-    missingPrompts.push("📊 Mermaid 图表 (约 5.5 MB)");
+    missingPrompts.push("流程图");
   }
   if (missingPrompts.length > 0) {
     const existingBanner = contentEl.querySelector(".addon-hint-banner");
@@ -145,8 +145,8 @@ async function enhanceRichMedia() {
       const banner = document.createElement("div");
       banner.className = "addon-hint-banner";
       banner.innerHTML = `
-        <span>检测到文档包含 ${escapeHtml(missingPrompts.join("、"))}，当前处于零外联模式。</span>
-        <button type="button" class="btn btn-primary btn-compact" onclick="showAddonsModal()">🧩 按需启用离线渲染</button>
+        <span>文档包含${escapeHtml(missingPrompts.join("、"))}，需安装对应扩展后显示。</span>
+        <button type="button" class="btn btn-primary btn-compact" onclick="showAddonsModal()">🧩 去安装</button>
       `;
       const header = contentEl.querySelector(".print-doc-header");
       if (header && header.nextSibling) {
@@ -212,20 +212,20 @@ function renderAddonsModalList(list) {
     let badgeText = "未安装";
     let badgeClass = "addon-badge";
     if (a.installed && a.enabled) {
-      badgeText = "已离线启用";
+      badgeText = "已启用";
       badgeClass = "addon-badge addon-badge-ok";
     } else if (a.installed) {
-      badgeText = "已暂停";
+      badgeText = "已停用";
       badgeClass = "addon-badge addon-badge-muted";
     }
 
     const actions = a.installed
       ? `
         <button type="button" class="btn btn-compact" onclick="toggleAddon('${escapeHtml(a.id)}', ${!a.enabled})">${a.enabled ? "⏸ 停用" : "▶️ 启用"}</button>
-        <button type="button" class="btn btn-compact" onclick="removeAddon('${escapeHtml(a.id)}')">🗑️ 清理缓存</button>
+        <button type="button" class="btn btn-compact" onclick="removeAddon('${escapeHtml(a.id)}')">🗑️ 卸载</button>
       `
       : `
-        <button type="button" class="btn btn-primary btn-compact" onclick="installAddon('${escapeHtml(a.id)}')">⬇️ 下载并校验安装 (${sizeMB} MB)</button>
+        <button type="button" class="btn btn-primary btn-compact" onclick="installAddon('${escapeHtml(a.id)}')">⬇️ 安装 (${sizeMB} MB)</button>
       `;
 
     return `
@@ -233,18 +233,17 @@ function renderAddonsModalList(list) {
         <div class="addon-card-head">
           <div>
             <strong>${escapeHtml(a.name)}</strong>
-            <code class="addon-ver">v${escapeHtml(a.version)} · ${escapeHtml(a.license)}</code>
+            <code class="addon-ver">v${escapeHtml(a.version)}</code>
           </div>
           <span class="${badgeClass}">${badgeText}</span>
         </div>
         <div class="addon-desc">${escapeHtml(a.description)}</div>
-        <div class="addon-foot">
-          <span class="addon-copyright">${escapeHtml(a.copyright)}</span>
+        <div class="addon-foot" style="justify-content: flex-end;">
           <div class="addon-actions">${actions}</div>
         </div>
         <div class="ota-progress-wrap addon-progress-wrap" id="addon-progress-${escapeHtml(a.id)}" style="display:none; margin-top:8px; margin-bottom:0;">
           <div class="ota-progress-head">
-            <span class="addon-progress-phase">正在下载并校验 SHA-256...</span>
+            <span class="addon-progress-phase">下载中...</span>
             <span class="addon-progress-stats">0%</span>
           </div>
           <div class="ota-progress-track">
@@ -266,21 +265,21 @@ function renderAddonProgress(p) {
   wrap.style.display = "block";
 
   if (p.phase === "error") {
-    phaseEl.textContent = "❌ 安装或校验失败";
+    phaseEl.textContent = "❌ 安装失败";
     statsEl.textContent = "";
     return;
   }
   const doneMB = (p.bytesDone / (1024 * 1024)).toFixed(2);
   const totalMB = (p.bytesTotal / (1024 * 1024)).toFixed(2);
   if (p.phase === "ready") {
-    phaseEl.textContent = "✓ SHA-256 校验通过并已离线就绪";
+    phaseEl.textContent = "✓ 安装完成";
     statsEl.textContent = "100%";
     fillEl.classList.add("done");
     fillEl.style.width = "100%";
     return;
   }
   fillEl.classList.remove("done");
-  phaseEl.textContent = `正在拉取组件 (${p.completedFiles}/${p.totalFiles})`;
+  phaseEl.textContent = `下载中 (${p.completedFiles}/${p.totalFiles})`;
   statsEl.textContent = `${p.percent}% (${doneMB} / ${totalMB} MB)`;
   fillEl.style.width = `${Math.max(2, Math.min(100, p.percent || 0))}%`;
 }
@@ -294,12 +293,12 @@ async function installAddon(id) {
     const res = await rpcCall("addons.install", { id });
     addonsCache = (res && res.addons) || await getAddonsState(true);
     renderAddonsModalList(addonsCache);
-    showToast("✓ 扩展已校验安装并在当前文档生效");
+    showToast("✓ 安装完成");
     if (currentDocData && currentDocData.hasFile) {
       loadFile(true);
     }
   } catch (err) {
-    showToast("❌ 扩展安装失败: " + err.message);
+    showToast("❌ 安装失败: " + err.message);
     if (btn) btn.disabled = false;
   }
 }
@@ -313,7 +312,7 @@ async function toggleAddon(id, enabled) {
       loadFile(true);
     }
   } catch (err) {
-    showToast("❌ 切换扩展状态失败: " + err.message);
+    showToast("❌ 操作失败: " + err.message);
   }
 }
 
@@ -322,7 +321,7 @@ async function removeAddon(id) {
     const res = await rpcCall("addons.remove", { id });
     addonsCache = (res && res.addons) || [];
     renderAddonsModalList(addonsCache);
-    showToast("✓ 已清理本地扩展缓存");
+    showToast("✓ 已卸载");
     if (currentDocData && currentDocData.hasFile) {
       loadFile(true);
     }

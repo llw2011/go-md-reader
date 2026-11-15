@@ -80,11 +80,11 @@ func DefaultCatalog() []AddonSpec {
 	return []AddonSpec{
 		{
 			ID:          "katex",
-			Name:        "KaTeX 数学公式渲染",
+			Name:        "数学公式 (KaTeX)",
 			Version:     "0.19.1",
 			License:     "MIT",
 			Copyright:   "Copyright (c) Khan Academy and other contributors",
-			Description: "支持离线高质量渲染行内 ($...$) 与块级 ($$...$$) LaTeX 数学公式",
+			Description: "显示文档中的数学公式",
 			Files: []AddonFile{
 				{RelPath: "katex.min.css", URLPath: "/katex@0.19.1/dist/katex.min.css", Size: 24793, SHA256: "00e0b094171b07f58422075f469b4feac2b2f7bce1aeec943c08da4d697f4dcf"},
 				{RelPath: "katex.min.js", URLPath: "/katex@0.19.1/dist/katex.min.js", Size: 273081, SHA256: "fa140498b8cfc8302cbe5e7cb1bdbc1f952bc38b3fa258ede09e73edbf9a74bc"},
@@ -113,11 +113,11 @@ func DefaultCatalog() []AddonSpec {
 		},
 		{
 			ID:          "mermaid",
-			Name:        "Mermaid 流程图与时序图",
+			Name:        "流程图与图表 (Mermaid)",
 			Version:     "12.3.0",
 			License:     "MIT",
 			Copyright:   "Copyright (c) Knut Sveidqvist",
-			Description: "将 mermaid 代码块离线渲染为矢量图表，并自动随 4 套护眼/深色主题切换配色",
+			Description: "把流程图代码画成图形，随主题自动变色",
 			Files: []AddonFile{
 				{RelPath: "mermaid.min.js", URLPath: "/mermaid@12.3.0/dist/mermaid.min.js", Size: 5537838, SHA256: "336df803d87a38b70a01e736e666c8f7601d2ce42f5e47c8fafe5d721074b9a3"},
 			},

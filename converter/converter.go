@@ -49,7 +49,7 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 	if ext == ".docx" || (isZip && isDocxZip(data)) {
 		md, err := DocxToMarkdown(bytes.NewReader(data), int64(len(data)))
 		if err == nil && len(strings.TrimSpace(md)) > 0 {
-			banner := "> [!TIP]\n> 📄 **已自动将 Word 文档 (.docx) 转换为 Markdown 视图**（可点击工具栏『导出 -> 另存为 .md』保存转换结果）。\n\n"
+			banner := "> [!TIP]\n> 📄 **Word 文档已转为阅读视图**（可在「导出」中另存为 .md）。\n\n"
 			return Result{
 				Markdown:    banner + md,
 				IsConverted: true,
@@ -61,7 +61,7 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 	if ext == ".xlsx" || (isZip && isXlsxZip(data)) {
 		md, err := XlsxToMarkdown(bytes.NewReader(data), int64(len(data)))
 		if err == nil && len(strings.TrimSpace(md)) > 0 {
-			banner := "> [!TIP]\n> 📊 **已自动将 Excel 表格 (.xlsx) 转换为 Markdown 数据表**（点击表头可排序，悬浮表格可一键复制，点击『↔️ 宽屏』可展开全宽视图）。\n\n"
+			banner := "> [!TIP]\n> 📊 **Excel 表格已转为阅读视图**（点表头可排序）。\n\n"
 			return Result{
 				Markdown:    banner + md,
 				IsConverted: true,
@@ -73,7 +73,7 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 	if ext == ".pptx" || (isZip && isPptxZip(data)) {
 		md, err := PptxToMarkdown(bytes.NewReader(data), int64(len(data)))
 		if err == nil && len(strings.TrimSpace(md)) > 0 {
-			banner := "> [!TIP]\n> 🖥️ **已自动将 PowerPoint 演示文稿 (.pptx) 提取为 Markdown 幻灯片大纲**。\n\n"
+			banner := "> [!TIP]\n> 🖥️ **PPT 内容已转为阅读视图**。\n\n"
 			return Result{
 				Markdown:    banner + md,
 				IsConverted: true,
@@ -85,7 +85,7 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 	if ext == ".epub" || (isZip && isEpubZip(data)) {
 		md, err := EpubToMarkdown(bytes.NewReader(data), int64(len(data)))
 		if err == nil && len(strings.TrimSpace(md)) > 0 {
-			banner := "> [!TIP]\n> 📚 **已自动将 EPUB 电子书转换为 Markdown 阅读视图**（可点击工具栏『导出 -> 另存为 .md』保存）。\n\n"
+			banner := "> [!TIP]\n> 📚 **EPUB 电子书已转为阅读视图**（可在「导出」中另存为 .md）。\n\n"
 			return Result{
 				Markdown:    banner + md,
 				IsConverted: true,
@@ -96,8 +96,9 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 
 	// 1b. Standalone HTML documents -> readable Markdown
 	if ext == ".html" || ext == ".htm" {
-		if md, err := HTMLToMarkdown(string(data)); err == nil && md != "" {
-			banner := "> [!TIP]\n> 🌐 **已自动将 HTML 网页转换为 Markdown 阅读视图**（可点击工具栏『导出 -> 另存为 .md』保存）。\n\n"
+		decodedHTML := DecodeTextToUTF8(data)
+		if md, err := HTMLToMarkdown(decodedHTML); err == nil && md != "" {
+			banner := "> [!TIP]\n> 🌐 **网页已转为阅读视图**（可在「导出」中另存为 .md）。\n\n"
 			return Result{
 				Markdown:    banner + md,
 				IsConverted: true,
@@ -112,9 +113,9 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 		if ext == ".tsv" {
 			sep = '\t'
 		}
-		md := delimitedToMarkdown(data, sep)
+		md := delimitedToMarkdown([]byte(DecodeTextToUTF8(data)), sep)
 		if len(md) > 0 {
-			banner := fmt.Sprintf("> [!TIP]\n> 📑 **已将 %s 数据表格式化为 Markdown 表格视图**（点击表头可排序）。\n\n", strings.ToUpper(strings.TrimPrefix(ext, ".")))
+			banner := fmt.Sprintf("> [!TIP]\n> 📑 **%s 表格已格式化**（点表头可排序）。\n\n", strings.ToUpper(strings.TrimPrefix(ext, ".")))
 			return Result{
 				Markdown:    banner + md,
 				IsConverted: true,
@@ -126,8 +127,9 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 	// 3. JSON Auto-Formatting & Highlighting
 	if ext == ".json" {
 		var prettyJSON bytes.Buffer
-		if err := json.Indent(&prettyJSON, data, "", "  "); err == nil {
-			md := fmt.Sprintf("# 📄 JSON 数据预览: `%s`\n\n```json\n%s\n```\n", filename, prettyJSON.String())
+		decodedJSON := []byte(DecodeTextToUTF8(data))
+		if err := json.Indent(&prettyJSON, decodedJSON, "", "  "); err == nil {
+			md := fmt.Sprintf("# 📄 `%s`\n\n```json\n%s\n```\n", filename, prettyJSON.String())
 			return Result{
 				Markdown:    md,
 				IsConverted: true,
@@ -138,7 +140,7 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 
 	// 4. Source Code & Config Files Highlighting
 	if lang := detectCodeLanguage(ext); lang != "" {
-		md := fmt.Sprintf("# 💻 代码与配置预览: `%s`\n\n```%s\n%s\n```\n", filename, lang, string(data))
+		md := fmt.Sprintf("# 💻 `%s`\n\n```%s\n%s\n```\n", filename, lang, DecodeTextToUTF8(data))
 		return Result{
 			Markdown:    md,
 			IsConverted: true,
@@ -149,7 +151,7 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 	// 5. Legacy binary Office files (.doc, .xls, .ppt, CFBF format: D0 CF 11 E0)
 	if len(data) >= 8 && data[0] == 0xD0 && data[1] == 0xCF && data[2] == 0x11 && data[3] == 0xE0 {
 		text := extractLegacyOfficeText(data)
-		banner := "> [!NOTE]\n> ⚠️ **检测到旧版二进制 Office 文件 (.doc / .xls)**\n> 本文件为 Office 97-2003 二进制格式。推荐使用 Office/WPS 另存为现代 `.docx` 或 `.xlsx` 以获取完整表格与样式。以下为自动提取的文本内容：\n\n"
+		banner := "> [!NOTE]\n> ⚠️ **旧版 Office 文件 (.doc / .xls)**，仅提取纯文本；如需完整排版建议另存为 `.docx` 或 `.xlsx`。\n\n"
 		return Result{
 			Markdown:    banner + text,
 			IsConverted: true,
@@ -157,9 +159,9 @@ func ConvertToMarkdown(filename string, data []byte) Result {
 		}
 	}
 
-	// 6. Default: Standard Markdown / Plain text
+	// 6. Default: Standard Markdown / Plain text (UTF-8 / UTF-16 / GB2312 / GBK / GB18030)
 	return Result{
-		Markdown:    string(data),
+		Markdown:    DecodeTextToUTF8(data),
 		IsConverted: false,
 		FormatNote:  "",
 	}

@@ -1,6 +1,6 @@
 module go-md-reader
 
-go 1.25.6
+go 1.26.0
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.5.2
@@ -11,6 +11,7 @@ require (
 	github.com/yuin/goldmark-emoji v1.0.6
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
 	golang.org/x/sys v0.45.0
+	golang.org/x/text v0.44.0
 )
 
 require (

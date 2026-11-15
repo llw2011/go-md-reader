@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/encoding/unicode"
 )
 
 func TestDocxConversion(t *testing.T) {
@@ -134,5 +137,50 @@ func TestEpubConversion(t *testing.T) {
 		if !strings.Contains(res.Markdown, want) {
 			t.Fatalf("expected %q in EPUB Markdown:\n%s", want, res.Markdown)
 		}
+	}
+}
+
+func TestDecodeTextAndGB2312Files(t *testing.T) {
+	sampleMD := "# 中文标题\n\n这是一个 GB2312 编码的文档：你好，世界！\n"
+	gbkBytes, err := simplifiedchinese.GBK.NewEncoder().Bytes([]byte(sampleMD))
+	if err != nil {
+		t.Fatalf("encode GBK failed: %v", err)
+	}
+
+	resMD := ConvertToMarkdown("notes.md", gbkBytes)
+	if resMD.Markdown != sampleMD {
+		t.Fatalf("expected decoded GB2312 markdown %q, got %q", sampleMD, resMD.Markdown)
+	}
+
+	resTXT := ConvertToMarkdown("readme.txt", gbkBytes)
+	if resTXT.Markdown != sampleMD {
+		t.Fatalf("expected decoded GB2312 txt %q, got %q", sampleMD, resTXT.Markdown)
+	}
+
+	sampleCSV := "姓名,部门\n张三,研发部\n"
+	gbkCSV, _ := simplifiedchinese.GBK.NewEncoder().Bytes([]byte(sampleCSV))
+	resCSV := ConvertToMarkdown("staff.csv", gbkCSV)
+	if !strings.Contains(resCSV.Markdown, "张三") || !strings.Contains(resCSV.Markdown, "研发部") {
+		t.Fatalf("expected decoded GB2312 CSV content, got:\n%s", resCSV.Markdown)
+	}
+
+	sampleHTML := "<html><body><h1>网页标题</h1><p>中文内容测试</p></body></html>"
+	gbkHTML, _ := simplifiedchinese.GBK.NewEncoder().Bytes([]byte(sampleHTML))
+	resHTML := ConvertToMarkdown("page.html", gbkHTML)
+	if !strings.Contains(resHTML.Markdown, "网页标题") || !strings.Contains(resHTML.Markdown, "中文内容测试") {
+		t.Fatalf("expected decoded GB2312 HTML content, got:\n%s", resHTML.Markdown)
+	}
+
+	utf16LE, err := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewEncoder().Bytes([]byte("UTF16 测试文本"))
+	if err != nil {
+		t.Fatalf("encode UTF16 failed: %v", err)
+	}
+	if got := DecodeTextToUTF8(utf16LE); got != "UTF16 测试文本" {
+		t.Fatalf("expected UTF16 LE decoded string, got %q", got)
+	}
+
+	utf8BOM := append([]byte{0xEF, 0xBB, 0xBF}, []byte("BOM 中文")...)
+	if got := DecodeTextToUTF8(utf8BOM); got != "BOM 中文" {
+		t.Fatalf("expected UTF-8 BOM stripped string, got %q", got)
 	}
 }

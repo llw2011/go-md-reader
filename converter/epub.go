@@ -131,7 +131,7 @@ func EpubToMarkdown(r io.ReaderAt, size int64) (string, error) {
 		if err != nil {
 			continue
 		}
-		chapterMD, err := HTMLToMarkdown(string(rawHTML))
+		chapterMD, err := HTMLToMarkdown(DecodeTextToUTF8(rawHTML))
 		if err != nil || chapterMD == "" {
 			continue
 		}

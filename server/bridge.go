@@ -46,6 +46,11 @@ func (s *Server) BindWebView(wv WebViewBridge) error {
 		}
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					reject(fmt.Errorf("内部异常 (%s): %v", method, r))
+				}
+			}()
 			res, err := s.HandleRPC(context.Background(), method, json.RawMessage(paramsJSON))
 			if err != nil {
 				reject(err)

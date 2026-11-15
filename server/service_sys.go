@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"go-md-reader/addons"
 	"go-md-reader/assoc"
 	"go-md-reader/updater"
 )
@@ -60,7 +61,7 @@ func (s *Server) SetNotepadReplaced(req NotepadSetRequest) (NotepadStatusRespons
 
 // SaveOTAConfig validates and persists OTA update preferences.
 func (s *Server) SaveOTAConfig(req OTAConfigRequest) (OTAConfigSaveResponse, error) {
-	view, err := s.updater.SaveConfig(req.Repo, req.Token, req.ClearToken, req.IncludePrerelease)
+	view, err := s.updater.SaveConfig(req.IncludePrerelease)
 	if err != nil {
 		return OTAConfigSaveResponse{}, err
 	}
@@ -169,4 +170,33 @@ func (s *Server) ApplyOTAUpdate() (OKResponse, error) {
 	}()
 
 	return OKResponse{OK: true}, nil
+}
+
+// InstallAddon downloads, SHA-256 verifies, and activates a curated optional MIT addon.
+func (s *Server) InstallAddon(ctx context.Context, req AddonActionRequest) (AddonInstallResponse, error) {
+	status, err := s.addons.Install(ctx, req.ID, func(p addons.InstallProgress) {
+		s.TriggerEvent("addon-progress", p)
+	})
+	if err != nil {
+		return AddonInstallResponse{}, err
+	}
+	return AddonInstallResponse{OK: true, Addon: status, Addons: s.addons.List()}, nil
+}
+
+// ToggleAddon enables or disables an already-installed addon cleanly.
+func (s *Server) ToggleAddon(req AddonToggleRequest) (AddonsListResponse, error) {
+	list, err := s.addons.SetEnabled(req.ID, req.Enabled)
+	if err != nil {
+		return AddonsListResponse{}, err
+	}
+	return AddonsListResponse{OK: true, Addons: list}, nil
+}
+
+// RemoveAddon deletes a locally cached addon from disk.
+func (s *Server) RemoveAddon(req AddonActionRequest) (AddonsListResponse, error) {
+	list, err := s.addons.Remove(req.ID)
+	if err != nil {
+		return AddonsListResponse{}, err
+	}
+	return AddonsListResponse{OK: true, Addons: list}, nil
 }

@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"go-md-reader/addons"
 	"go-md-reader/parser"
 	"go-md-reader/updater"
 )
@@ -26,6 +27,7 @@ type Server struct {
 	assetsFS        embed.FS
 	parser          *parser.MarkdownParser
 	updater         *updater.Manager
+	addons          *addons.Manager
 	uiPrefs         *uiPrefsStore
 	mu              sync.RWMutex
 	currentFilePath string
@@ -67,6 +69,7 @@ func New(assets embed.FS, initialFile string) (*Server, error) {
 		assetsFS: assets,
 		parser:   parser.NewMarkdownParserWithMediaPrefix("media/"),
 		updater:  updater.NewManager(""),
+		addons:   addons.NewManager("", "", nil),
 		uiPrefs:  newUIPrefsStore(""),
 		nonce:    nonce,
 		listener: ln,
@@ -205,6 +208,7 @@ func (s *Server) buildMux() *http.ServeMux {
 	}
 
 	mux.HandleFunc(base+"/media/", s.handleMedia)
+	mux.HandleFunc(base+"/addons/", s.handleAddon)
 	mux.HandleFunc(base+"/activate", s.handleActivate)
 
 	return mux
@@ -251,6 +255,25 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	http.ServeFile(w, r, fullPath)
+}
+
+func (s *Server) handleAddon(w http.ResponseWriter, r *http.Request) {
+	prefix := "/" + s.nonce + "/addons/"
+	rest := strings.TrimPrefix(r.URL.Path, prefix)
+	slashIdx := strings.IndexByte(rest, '/')
+	if slashIdx <= 0 || slashIdx == len(rest)-1 {
+		http.NotFound(w, r)
+		return
+	}
+	id := rest[:slashIdx]
+	relPath := rest[slashIdx+1:]
+	fullPath, ok := s.addons.ResolveFile(id, relPath)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
 	http.ServeFile(w, r, fullPath)
 }
 

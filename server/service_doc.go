@@ -109,7 +109,8 @@ func (s *Server) GetSiblings() SiblingsResponse {
 		".md": true, ".markdown": true, ".txt": true,
 		".docx": true, ".doc": true,
 		".xlsx": true, ".xls": true, ".csv": true, ".tsv": true,
-		".pptx": true, ".json": true, ".yaml": true, ".yml": true,
+		".pptx": true, ".epub": true, ".html": true, ".htm": true,
+		".json": true, ".yaml": true, ".yml": true,
 	}
 
 	list := make([]SiblingItem, 0, len(entries))

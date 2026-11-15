@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"go-md-reader/addons"
 	"go-md-reader/updater"
 )
 
@@ -326,5 +327,130 @@ func TestEventDrivenWatcherDetectsExternalWriteWithoutEchoOnSave(t *testing.T) {
 
 	if got := srv.GetFile(); got.RawContent != string(extPayload) {
 		t.Fatalf("expected updated external content, got %q", got.RawContent)
+	}
+}
+
+type mockWebViewBridge struct {
+	boundFn func(id int, method string, paramsJSON string)
+	evalCh  chan string
+}
+
+func (m *mockWebViewBridge) Bind(name string, f interface{}) error {
+	if name == "__appCall" {
+		m.boundFn = f.(func(int, string, string))
+	}
+	return nil
+}
+
+func (m *mockWebViewBridge) Dispatch(f func()) { f() }
+func (m *mockWebViewBridge) Eval(js string)    { m.evalCh <- js }
+
+func TestBindWebViewRecoversFromPanic(t *testing.T) {
+	srv := newTestServer(t, "")
+	srv.SetTrayHandlers(func() bool {
+		panic("boom")
+	}, nil, nil)
+
+	mockWV := &mockWebViewBridge{evalCh: make(chan string, 4)}
+	if err := srv.BindWebView(mockWV); err != nil {
+		t.Fatalf("BindWebView failed: %v", err)
+	}
+	if mockWV.boundFn == nil {
+		t.Fatal("expected __appCall binding")
+	}
+
+	mockWV.boundFn(7, "tray.get", "{}")
+
+	select {
+	case js := <-mockWV.evalCh:
+		if !strings.Contains(js, "window.__rpcReject(7,") || !strings.Contains(js, "boom") {
+			t.Fatalf("expected __rpcReject with panic info, got %q", js)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out waiting for panic recovery rejection")
+	}
+}
+
+func TestWatcherReattachesAfterDirDeleteAndRecreate(t *testing.T) {
+	base := t.TempDir()
+	sub := filepath.Join(base, "sub")
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	docPath := filepath.Join(sub, "watched.md")
+	if err := os.WriteFile(docPath, []byte("# V1"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := newTestServer(t, docPath)
+	events := make(chan string, 8)
+	srv.SetEventSink(func(ev string, _ interface{}) {
+		events <- ev
+	})
+	time.Sleep(40 * time.Millisecond)
+
+	// Delete the entire watched directory externally without switching document.
+	if err := os.RemoveAll(sub); err != nil {
+		t.Fatal(err)
+	}
+	// Pause briefly so watcher transitions onto ancestor directory while sub is absent.
+	time.Sleep(80 * time.Millisecond)
+
+	// Recreate directory and write updated file without any notifyWatcher/doc switch.
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	v2 := "# V2 Recreated Directory"
+	if err := os.WriteFile(docPath, []byte(v2), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case ev := <-events:
+		if ev != "reload" {
+			t.Fatalf("expected reload after recreate, got %q", ev)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for watcher re-attach after directory delete+recreate")
+	}
+	if got := srv.GetFile().RawContent; got != v2 {
+		t.Fatalf("expected %q, got %q", v2, got)
+	}
+
+	// Verify dirHandle truly re-attached to the recreated sub directory for subsequent edits.
+	v3 := "# V3 Still Watched In Recreated Dir"
+	if err := os.WriteFile(docPath, []byte(v3), 0644); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case ev := <-events:
+		if ev != "reload" {
+			t.Fatalf("expected second reload on recreated dir, got %q", ev)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for subsequent edit inside recreated directory")
+	}
+}
+
+func TestAddonsRPCAndHTTPServing(t *testing.T) {
+	srv := newTestServer(t, "")
+	srv.addons = addons.NewManager(t.TempDir(), "", nil)
+
+	res, err := srv.HandleRPC(context.Background(), "addons.list", nil)
+	if err != nil {
+		t.Fatalf("addons.list failed: %v", err)
+	}
+	listResp, ok := res.(AddonsListResponse)
+	if !ok || !listResp.OK || len(listResp.Addons) < 2 {
+		t.Fatalf("unexpected AddonsListResponse: %+v", res)
+	}
+
+	// Uninstalled addon files must return 404 over the nonce-scoped HTTP mux
+	mux := srv.buildMux()
+	req := httptest.NewRequest(http.MethodGet, "/"+srv.Nonce()+"/addons/katex/katex.min.js", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for uninstalled addon file, got %d", rec.Code)
 	}
 }

@@ -37,40 +37,26 @@ func TestCompareSemver(t *testing.T) {
 	}
 }
 
-func TestNormalizeRepo(t *testing.T) {
-	if got, err := NormalizeRepo("https://github.com/alice/go-md-reader.git"); err != nil || got != "alice/go-md-reader" {
-		t.Fatalf("unexpected normalize result: %q, %v", got, err)
-	}
-	if _, err := NormalizeRepo("https://evil.example.com/alice/repo"); err == nil {
-		t.Fatal("expected error for non-github URL")
-	}
-	if _, err := NormalizeRepo("only-owner"); err == nil {
-		t.Fatal("expected error for missing slash")
-	}
-}
-
-func TestConfigMaskingAndPersistence(t *testing.T) {
+func TestConfigPersistence(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "ota.json")
 	mgr := NewManager(cfgPath)
 
-	view, err := mgr.SaveConfig("alice/go-md-reader", "ghp_1234567890abcdef", false, true)
+	view, err := mgr.SaveConfig(true)
 	if err != nil {
 		t.Fatalf("SaveConfig failed: %v", err)
 	}
-	if !view.HasToken || view.TokenPreview != "ghp_****cdef" || view.Repo != "alice/go-md-reader" {
+	if !view.IncludePrerelease || view.CurrentVersion != CurrentVersion {
 		t.Fatalf("unexpected view: %+v", view)
 	}
 
-	// Updating repo with empty token keeps existing token
-	view2, err := mgr.SaveConfig("bob/go-md-reader", "", false, false)
-	if err != nil || !view2.HasToken || view2.TokenPreview != "ghp_****cdef" {
-		t.Fatalf("expected existing token preserved, got %+v, %v", view2, err)
+	view2 := NewManager(cfgPath).GetConfigView()
+	if !view2.IncludePrerelease {
+		t.Fatalf("expected persisted includePrerelease=true, got %+v", view2)
 	}
 
-	// Clearing token wipes it
-	view3, err := mgr.SaveConfig("bob/go-md-reader", "", true, false)
-	if err != nil || view3.HasToken || view3.TokenPreview != "" {
-		t.Fatalf("expected cleared token, got %+v, %v", view3, err)
+	view3, err := mgr.SaveConfig(false)
+	if err != nil || view3.IncludePrerelease {
+		t.Fatalf("expected includePrerelease=false, got %+v, %v", view3, err)
 	}
 }
 
@@ -81,26 +67,21 @@ func TestCheckAndDownloadWithMockGitHub(t *testing.T) {
 
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer secret-tok" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
 		switch r.URL.Path {
-		case "/repos/alice/go-md-reader/releases/latest":
+		case "/repos/" + DefaultRepo + "/releases/latest":
 			_ = json.NewEncoder(w).Encode(ghRelease{
-				TagName: "v2.1.0",
-				Name:    "v2.1.0 Tray + OTA",
+				TagName: "v2.4.0",
+				Name:    "v2.4.0 Tray + OTA",
 				Assets: []ghAsset{
 					{
-						ID:     1,
 						Name:   "go-md-reader.exe",
 						Size:   int64(len(payload)),
-						URL:    srv.URL + "/repos/alice/go-md-reader/releases/assets/1",
+						URL:    srv.URL + "/repos/" + DefaultRepo + "/releases/assets/1",
 						Digest: "sha256:" + hexSum,
 					},
 				},
 			})
-		case "/repos/alice/go-md-reader/releases/assets/1":
+		case "/repos/" + DefaultRepo + "/releases/assets/1":
 			_, _ = w.Write(payload)
 		default:
 			http.NotFound(w, r)
@@ -118,15 +99,12 @@ func TestCheckAndDownloadWithMockGitHub(t *testing.T) {
 
 	mgr := NewManager(filepath.Join(t.TempDir(), "ota.json"))
 	mgr.stageRoot = t.TempDir()
-	if _, err := mgr.SaveConfig("alice/go-md-reader", "secret-tok", false, false); err != nil {
-		t.Fatal(err)
-	}
 
 	res, err := mgr.CheckUpdate(context.Background())
 	if err != nil {
 		t.Fatalf("CheckUpdate failed: %v", err)
 	}
-	if !res.HasUpdate || res.LatestVersion != "v2.1.0" || res.Asset == nil {
+	if !res.HasUpdate || res.LatestVersion != "v2.4.0" || res.Asset == nil {
 		t.Fatalf("unexpected CheckResult: %+v", res)
 	}
 
@@ -149,7 +127,7 @@ func TestDownloadProgressAndIdempotentCoalescingAndCacheReuse(t *testing.T) {
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/repos/alice/go-md-reader/releases/latest":
+		case "/repos/" + DefaultRepo + "/releases/latest":
 			releaseHits.Add(1)
 			time.Sleep(30 * time.Millisecond)
 			_ = json.NewEncoder(w).Encode(ghRelease{
@@ -157,15 +135,14 @@ func TestDownloadProgressAndIdempotentCoalescingAndCacheReuse(t *testing.T) {
 				Name:    "v2.4.0",
 				Assets: []ghAsset{
 					{
-						ID:     42,
 						Name:   "go-md-reader.exe",
 						Size:   int64(len(payload)),
-						URL:    srv.URL + "/repos/alice/go-md-reader/releases/assets/42",
+						URL:    srv.URL + "/repos/" + DefaultRepo + "/releases/assets/42",
 						Digest: "sha256:" + hexSum,
 					},
 				},
 			})
-		case "/repos/alice/go-md-reader/releases/assets/42":
+		case "/repos/" + DefaultRepo + "/releases/assets/42":
 			assetHits.Add(1)
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(payload)))
 			fl, _ := w.(http.Flusher)
@@ -196,7 +173,6 @@ func TestDownloadProgressAndIdempotentCoalescingAndCacheReuse(t *testing.T) {
 
 	mgr := NewManager(filepath.Join(t.TempDir(), "ota.json"))
 	mgr.stageRoot = t.TempDir()
-	_, _ = mgr.SaveConfig("alice/go-md-reader", "", false, false)
 
 	// 1. Concurrent CheckUpdate coalesces into 1 HTTP request
 	var chkWG sync.WaitGroup

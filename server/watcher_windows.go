@@ -2,6 +2,7 @@ package server
 
 import (
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 
@@ -120,8 +121,42 @@ func (s *Server) checkActiveFileChanged() {
 	}
 }
 
+func closeWatchHandle(h *windows.Handle) {
+	if *h != 0 && *h != windows.InvalidHandle {
+		_ = windows.FindCloseChangeNotification(*h)
+	}
+	*h = 0
+}
+
+func ancestorWatchTarget(dir string, dirAttached bool) (string, bool) {
+	parent := filepath.Dir(dir)
+	if parent == "" || parent == dir {
+		return "", false
+	}
+	if dirAttached {
+		if info, err := os.Stat(parent); err == nil && info.IsDir() {
+			return parent, false
+		}
+		return "", false
+	}
+	cur := parent
+	subtree := false
+	for cur != "" {
+		if info, err := os.Stat(cur); err == nil && info.IsDir() {
+			return cur, subtree
+		}
+		next := filepath.Dir(cur)
+		if next == cur {
+			break
+		}
+		cur = next
+		subtree = true
+	}
+	return "", false
+}
+
 // watchLoop waits on Win32 directory change notifications (zero polling) and emits "reload"
-// when the currently open disk file is modified or atomically replaced externally.
+// when the currently open disk file is modified or its directory is externally deleted/renamed and recreated.
 func (s *Server) watchLoop() {
 	defer close(s.watcher.done)
 	if s.watcher.wake == 0 || s.watcher.stop == 0 {
@@ -129,35 +164,75 @@ func (s *Server) watchLoop() {
 	}
 
 	var watchedDir string
+	var watchedInfo os.FileInfo
 	var dirHandle windows.Handle
+	var ancestorPath string
+	var ancestorSubtree bool
+	var ancestorHandle windows.Handle
 
-	closeDirHandle := func() {
-		if dirHandle != 0 && dirHandle != windows.InvalidHandle {
-			_ = windows.FindCloseChangeNotification(dirHandle)
-		}
-		dirHandle = 0
-		watchedDir = ""
+	clearDirWatch := func() {
+		closeWatchHandle(&dirHandle)
+		watchedInfo = nil
 	}
-	defer closeDirHandle()
+	clearAncestorWatch := func() {
+		closeWatchHandle(&ancestorHandle)
+		ancestorPath = ""
+		ancestorSubtree = false
+	}
+	defer func() {
+		clearDirWatch()
+		clearAncestorWatch()
+	}()
 
 	for {
 		wantDir := s.activeWatchDir()
 		if wantDir != watchedDir {
-			closeDirHandle()
-			if wantDir != "" {
-				if h, err := windows.FindFirstChangeNotification(wantDir, false, fileNotifyMask); err == nil && h != 0 && h != windows.InvalidHandle {
+			clearDirWatch()
+			clearAncestorWatch()
+			watchedDir = wantDir
+		}
+
+		if watchedDir != "" {
+			curInfo, statErr := os.Stat(watchedDir)
+			if dirHandle != 0 && (statErr != nil || !curInfo.IsDir() || (watchedInfo != nil && !os.SameFile(watchedInfo, curInfo))) {
+				clearDirWatch()
+			}
+			if dirHandle == 0 && statErr == nil && curInfo.IsDir() {
+				if h, err := windows.FindFirstChangeNotification(watchedDir, false, fileNotifyMask); err == nil && h != 0 && h != windows.InvalidHandle {
 					dirHandle = h
-					watchedDir = wantDir
+					watchedInfo = curInfo
 					s.checkActiveFileChanged()
+				}
+			}
+
+			wantAnc, wantSubtree := ancestorWatchTarget(watchedDir, dirHandle != 0)
+			if wantAnc != ancestorPath || wantSubtree != ancestorSubtree {
+				clearAncestorWatch()
+				if wantAnc != "" {
+					if h, err := windows.FindFirstChangeNotification(wantAnc, wantSubtree, windows.FILE_NOTIFY_CHANGE_DIR_NAME); err == nil && h != 0 && h != windows.InvalidHandle {
+						ancestorHandle = h
+						ancestorPath = wantAnc
+						ancestorSubtree = wantSubtree
+						if dirHandle == 0 {
+							if reInfo, reErr := os.Stat(watchedDir); reErr == nil && reInfo.IsDir() {
+								continue
+							}
+						}
+					}
 				}
 			}
 		}
 
-		handles := make([]windows.Handle, 0, 3)
+		handles := make([]windows.Handle, 0, 4)
 		handles = append(handles, s.watcher.wake, s.watcher.stop)
-		hasDir := dirHandle != 0 && dirHandle != windows.InvalidHandle
-		if hasDir {
+		dirIdx, ancIdx := -1, -1
+		if dirHandle != 0 && dirHandle != windows.InvalidHandle {
+			dirIdx = len(handles)
 			handles = append(handles, dirHandle)
+		}
+		if ancestorHandle != 0 && ancestorHandle != windows.InvalidHandle {
+			ancIdx = len(handles)
+			handles = append(handles, ancestorHandle)
 		}
 
 		ev, err := windows.WaitForMultipleObjects(handles, false, windows.INFINITE)
@@ -165,24 +240,25 @@ func (s *Server) watchLoop() {
 			return
 		}
 
-		switch ev {
-		case windows.WAIT_OBJECT_0:
-			// Active directory or document changed; next iteration updates dirHandle.
+		switch idx := int(ev - windows.WAIT_OBJECT_0); {
+		case idx == 0:
+			// Active directory or document changed; next iteration updates watches.
 			continue
-		case windows.WAIT_OBJECT_0 + 1:
+		case idx == 1:
 			// Server shutdown signaled.
 			return
-		case windows.WAIT_OBJECT_0 + 2:
-			if hasDir {
-				if err := windows.FindNextChangeNotification(dirHandle); err != nil {
-					closeDirHandle()
-				}
+		case idx == dirIdx:
+			if err := windows.FindNextChangeNotification(dirHandle); err != nil {
+				clearDirWatch()
 			}
 			s.checkActiveFileChanged()
-		default:
-			if hasDir {
-				closeDirHandle()
+		case idx == ancIdx:
+			if err := windows.FindNextChangeNotification(ancestorHandle); err != nil {
+				clearAncestorWatch()
 			}
+		default:
+			clearDirWatch()
+			clearAncestorWatch()
 		}
 	}
 }

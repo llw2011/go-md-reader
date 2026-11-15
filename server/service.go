@@ -70,6 +70,18 @@ func (s *Server) HandleRPC(ctx context.Context, method string, rawParams json.Ra
 		return callNoArg(func() (OTADownloadResponse, error) { return s.DownloadOTAUpdate(ctx) })
 	case "ota.apply":
 		return callNoArg(s.ApplyOTAUpdate)
+	case "addons.list":
+		return callNoArg(func() (AddonsListResponse, error) {
+			return AddonsListResponse{OK: true, Addons: s.addons.List()}, nil
+		})
+	case "addons.install":
+		return callTyped(rawParams, func(req AddonActionRequest) (AddonInstallResponse, error) {
+			return s.InstallAddon(ctx, req)
+		})
+	case "addons.toggle":
+		return callTyped(rawParams, s.ToggleAddon)
+	case "addons.remove":
+		return callTyped(rawParams, s.RemoveAddon)
 	default:
 		return nil, fmt.Errorf("未知操作: %s", method)
 	}

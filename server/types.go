@@ -1,6 +1,7 @@
 package server
 
 import (
+	"go-md-reader/addons"
 	"go-md-reader/assoc"
 	"go-md-reader/parser"
 	"go-md-reader/updater"
@@ -124,10 +125,7 @@ type NotepadStatusResponse struct {
 
 // OTAConfigRequest updates OTA update configuration.
 type OTAConfigRequest struct {
-	Repo              string `json:"repo"`
-	Token             string `json:"token"`
-	ClearToken        bool   `json:"clearToken"`
-	IncludePrerelease bool   `json:"includePrerelease"`
+	IncludePrerelease bool `json:"includePrerelease"`
 }
 
 // OTAConfigSaveResponse returns the sanitized persisted OTA config view.
@@ -152,4 +150,28 @@ type OTADownloadResponse struct {
 // OKResponse is a minimal typed acknowledgment payload.
 type OKResponse struct {
 	OK bool `json:"ok"`
+}
+
+// AddonActionRequest identifies a curated optional addon for install or removal.
+type AddonActionRequest struct {
+	ID string `json:"id"`
+}
+
+// AddonToggleRequest enables or disables an installed optional addon.
+type AddonToggleRequest struct {
+	ID      string `json:"id"`
+	Enabled bool   `json:"enabled"`
+}
+
+// AddonsListResponse returns status for all curated optional addons.
+type AddonsListResponse struct {
+	OK     bool                 `json:"ok"`
+	Addons []addons.AddonStatus `json:"addons"`
+}
+
+// AddonInstallResponse returns the installed addon and refreshed catalog state.
+type AddonInstallResponse struct {
+	OK     bool                 `json:"ok"`
+	Addon  addons.AddonStatus   `json:"addon"`
+	Addons []addons.AddonStatus `json:"addons"`
 }

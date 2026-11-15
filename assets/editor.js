@@ -290,7 +290,7 @@ function toggleDropdown(menuId, e) {
   const target = document.getElementById(menuId);
   if (!target) return;
   const trigger = (e && (e.currentTarget || (e.target && e.target.closest("button")))) ||
-    (target.closest(".dropdown") && target.closest(".dropdown").querySelector('[aria-haspopup="menu"]'));
+    (target.closest(".dropdown") && target.closest(".dropdown").querySelector('[aria-haspopup]'));
   const isShown = target.classList.contains("show");
   closeAllDropdowns();
   if (!isShown) {
@@ -310,7 +310,7 @@ function toggleDropdown(menuId, e) {
     }
     if (trigger) trigger.setAttribute("aria-expanded", "true");
     if (e && e.type === "click" && e.detail === 0) {
-      const firstItem = target.querySelector(".dropdown-item");
+      const firstItem = target.querySelector(".dropdown-item, button:not([disabled])");
       if (firstItem) firstItem.focus();
     }
   }
@@ -318,7 +318,7 @@ function toggleDropdown(menuId, e) {
 
 function closeAllDropdowns() {
   document.querySelectorAll(".dropdown-menu").forEach(m => m.classList.remove("show"));
-  document.querySelectorAll('[aria-haspopup="menu"]').forEach(b => b.setAttribute("aria-expanded", "false"));
+  document.querySelectorAll('[aria-haspopup]').forEach(b => b.setAttribute("aria-expanded", "false"));
 }
 
 function addRecentFile(name, path) {

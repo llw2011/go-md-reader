@@ -57,9 +57,11 @@ function arrayBufferToBase64(buf) {
 
 const THEMES = [
   { id: "light", label: "☀️ 浅色" },
-  { id: "dark", label: "🌙 深色" },
   { id: "sepia", label: "📜 羊皮纸" },
-  { id: "forest", label: "🌲 护眼绿" }
+  { id: "forest", label: "🌲 护眼绿" },
+  { id: "dark", label: "🌙 深色" },
+  { id: "nord", label: "🌌 暗夜蓝灰" },
+  { id: "system", label: "🖥️ 跟随系统" }
 ];
 
 // Toast Notification Helper
@@ -81,6 +83,8 @@ function showToast(message) {
 let uiPrefsCache = {
   theme: "light",
   fontSize: 16,
+  fontFamily: "sans",
+  contentWidth: "standard",
   sidebarHidden: false,
   recentFiles: [],
   scrollPositions: {}

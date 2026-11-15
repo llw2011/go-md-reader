@@ -344,12 +344,15 @@ async function exportStandaloneHTML() {
     );
     const cssText = cssParts.join("\n");
     const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+    const currentFont = document.documentElement.getAttribute("data-font") || "sans";
+    const currentWidth = document.documentElement.getAttribute("data-width") || "standard";
 
     const standaloneHTML = `<!DOCTYPE html>
-<html lang="zh-CN" data-theme="${currentTheme}">
+<html lang="zh-CN" data-theme="${currentTheme}" data-font="${currentFont}" data-width="${currentWidth}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
   <title>${escapeHtml(currentDocData.filename)}</title>
   <style>
 ${cssText}

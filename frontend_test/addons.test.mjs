@@ -54,6 +54,15 @@ test("getMermaidThemeForApp maps app themes accurately", () => {
 
   attrs["data-theme"] = "light";
   assert.equal(fn(), "default");
+
+  attrs["data-theme"] = "nord";
+  assert.equal(fn(), "dark");
+
+  attrs["data-theme"] = "system";
+  ctx.window.matchMedia = () => ({ matches: true });
+  assert.equal(fn(), "dark");
+  ctx.window.matchMedia = () => ({ matches: false });
+  assert.equal(fn(), "default");
 });
 
 test("renderAddonProgress formats phase, byte MB stats, and percentage bar cleanly", () => {

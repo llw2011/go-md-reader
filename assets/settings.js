@@ -392,6 +392,53 @@ async function applyOTAUpdate() {
   }
 }
 
+const systemThemeQuery = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+if (systemThemeQuery && typeof systemThemeQuery.addEventListener === "function") {
+  systemThemeQuery.addEventListener("change", () => {
+    if ((uiPrefsCache.theme || "light") === "system") {
+      applyNativeWindowTheme("system");
+      if (typeof rerenderMermaidForTheme === "function") {
+        rerenderMermaidForTheme();
+      }
+    }
+  });
+}
+
+function isEffectiveDarkTheme(themeId) {
+  if (themeId === "dark" || themeId === "nord") return true;
+  if (themeId === "system") {
+    return !!(systemThemeQuery && systemThemeQuery.matches);
+  }
+  return false;
+}
+
+function applyNativeWindowTheme(themeId) {
+  const isDark = isEffectiveDarkTheme(themeId);
+  const meta = document.querySelector('meta[name="color-scheme"]');
+  if (meta) {
+    meta.content = themeId === "system" ? "light dark" : (isDark ? "dark" : "light");
+  }
+  if (typeof window.__winSetThemeDark === "function") {
+    window.__winSetThemeDark(isDark);
+  }
+}
+
+function updateAppearanceControlsUI() {
+  const activeTheme = uiPrefsCache.theme || "light";
+  const activeFont = uiPrefsCache.fontFamily || "sans";
+  const activeWidth = uiPrefsCache.contentWidth || "standard";
+
+  document.querySelectorAll(".theme-swatch-btn[data-theme-id]").forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-theme-id") === activeTheme);
+  });
+  document.querySelectorAll(".appearance-seg-btn[data-font-id]").forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-font-id") === activeFont);
+  });
+  document.querySelectorAll(".appearance-seg-btn[data-width-id]").forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-width-id") === activeWidth);
+  });
+}
+
 async function initReadingPrefs() {
   try {
     const data = await rpcCall("prefs.get");
@@ -399,6 +446,8 @@ async function initReadingPrefs() {
   } catch (e) {}
 
   setTheme(uiPrefsCache.theme || "light", false);
+  setFontFamily(uiPrefsCache.fontFamily || "sans", false);
+  setContentWidth(uiPrefsCache.contentWidth || "standard", false);
 
   const savedFont = uiPrefsCache.fontSize || 16;
   if (savedFont >= 12 && savedFont <= 26) {
@@ -432,6 +481,8 @@ function toggleSidebar() {
 
 function applyWideMode(isWide, isAuto = false) {
   autoWideModeApplied = isAuto && isWide;
+  const widthPreset = isWide ? "wide" : (uiPrefsCache.contentWidth === "narrow" ? "narrow" : "standard");
+  document.documentElement.setAttribute("data-width", widthPreset);
   document.body.classList.toggle("wide-mode", isWide);
   const btn = document.getElementById("wide-btn");
   if (btn) {
@@ -442,29 +493,62 @@ function applyWideMode(isWide, isAuto = false) {
 
 function toggleWideMode(forceState) {
   const isWide = typeof forceState === "boolean" ? forceState : !document.body.classList.contains("wide-mode");
-  applyWideMode(isWide, false);
+  const nextWidth = isWide ? "wide" : "standard";
+  setContentWidth(nextWidth, true);
+}
+
+function setFontFamily(fontId, save = true) {
+  const val = fontId === "serif" ? "serif" : "sans";
+  document.documentElement.setAttribute("data-font", val);
+  uiPrefsCache.fontFamily = val;
+  if (save) {
+    persistUIPrefs({ fontFamily: val });
+  }
+  updateAppearanceControlsUI();
+}
+
+function setContentWidth(widthId, save = true) {
+  const val = (widthId === "narrow" || widthId === "wide") ? widthId : "standard";
+  autoWideModeApplied = false;
+  uiPrefsCache.contentWidth = val;
+  document.documentElement.setAttribute("data-width", val);
+  const isWide = val === "wide";
+  document.body.classList.toggle("wide-mode", isWide);
+  const btn = document.getElementById("wide-btn");
+  if (btn) {
+    btn.classList.toggle("active", isWide);
+    btn.setAttribute("aria-pressed", String(isWide));
+  }
+  if (save) {
+    persistUIPrefs({ contentWidth: val });
+  }
+  updateAppearanceControlsUI();
+}
+
+function selectTheme(themeId) {
+  setTheme(themeId, true);
+  closeAllDropdowns();
 }
 
 function cycleTheme() {
-  const current = document.documentElement.getAttribute("data-theme") || "light";
+  const current = uiPrefsCache.theme || document.documentElement.getAttribute("data-theme") || "light";
   const idx = THEMES.findIndex(t => t.id === current);
   const next = THEMES[(idx + 1) % THEMES.length];
   setTheme(next.id, true);
-  showToast(`已切换至: ${next.label}模式`);
+  showToast(`已切换外观: ${next.label}`);
 }
 
 function setTheme(themeId, save = true) {
   const found = THEMES.find(t => t.id === themeId) || THEMES[0];
   document.documentElement.setAttribute("data-theme", found.id);
   uiPrefsCache.theme = found.id;
-  if (typeof window.__winSetThemeDark === "function") {
-    window.__winSetThemeDark(found.id === "dark");
-  }
+  applyNativeWindowTheme(found.id);
   if (save) {
     persistUIPrefs({ theme: found.id });
   }
   const icon = document.getElementById("theme-icon");
   if (icon) icon.textContent = found.label;
+  updateAppearanceControlsUI();
   if (typeof rerenderMermaidForTheme === "function") {
     rerenderMermaidForTheme();
   }

@@ -203,7 +203,7 @@ function initDelegatedLists() {
     });
   }
 
-  document.querySelectorAll('[aria-haspopup="menu"]').forEach(trigger => {
+  document.querySelectorAll('[aria-haspopup]').forEach(trigger => {
     trigger.addEventListener("keydown", (e) => {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -213,7 +213,7 @@ function initDelegatedLists() {
         if (!menu.classList.contains("show")) {
           toggleDropdown(menu.id, e);
         }
-        const first = menu.querySelector(".dropdown-item");
+        const first = menu.querySelector(".dropdown-item, button:not([disabled])");
         if (first) first.focus();
       }
     });
@@ -221,6 +221,13 @@ function initDelegatedLists() {
 
   document.querySelectorAll(".dropdown-menu").forEach(menu => {
     menu.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeAllDropdowns();
+        const trigger = menu.closest(".dropdown") && menu.closest(".dropdown").querySelector('[aria-haspopup]');
+        if (trigger) trigger.focus();
+        return;
+      }
       const items = Array.from(menu.querySelectorAll(".dropdown-item"));
       if (items.length === 0) return;
       const idx = items.indexOf(document.activeElement);
@@ -239,11 +246,6 @@ function initDelegatedLists() {
       } else if ((e.key === "Enter" || e.key === " ") && idx !== -1) {
         e.preventDefault();
         items[idx].click();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        closeAllDropdowns();
-        const trigger = menu.closest(".dropdown") && menu.closest(".dropdown").querySelector('[aria-haspopup="menu"]');
-        if (trigger) trigger.focus();
       }
     });
   });

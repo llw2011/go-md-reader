@@ -78,7 +78,11 @@ function ensureMermaidLoaded() {
 
 function getMermaidThemeForApp() {
   const t = document.documentElement.getAttribute("data-theme") || "light";
-  if (t === "dark") return "dark";
+  if (t === "dark" || t === "nord") return "dark";
+  if (t === "system") {
+    const prefersDark = typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    return prefersDark ? "dark" : "default";
+  }
   if (t === "forest") return "forest";
   return "default";
 }

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
   <title>Go Markdown Reader</title>
   <link rel="stylesheet" href="assets/theme.css">
   <link rel="stylesheet" href="assets/chrome.css">
@@ -30,7 +31,7 @@
         <span class="titlebar-brand">Go Markdown Reader</span>
         <span class="titlebar-sep" aria-hidden="true"></span>
         <span class="titlebar-doc" id="titlebar-doc-name">就绪</span>
-        <span class="titlebar-ver-pill">v2.4.1</span>
+        <span class="titlebar-ver-pill">v2.4.2</span>
       </div>
 
       <div class="titlebar-spacer" aria-hidden="true"></div>
@@ -74,9 +75,55 @@
           <button type="button" class="btn" onclick="toggleSearch()" title="查找文字 (Ctrl+F)">🔍 搜索</button>
           <button type="button" class="btn btn-compact" onclick="adjustFontSize(-1)" aria-label="缩小字号" title="缩小字号 (Ctrl + -)">A-</button>
           <button type="button" class="btn btn-compact" onclick="adjustFontSize(1)" aria-label="放大字号" title="放大字号 (Ctrl + +)">A+</button>
-          <button type="button" class="btn" onclick="cycleTheme()" id="theme-btn" title="切换阅读主题">
-            <span id="theme-icon">☀️ 浅色</span>
-          </button>
+          <div class="dropdown">
+            <button type="button" class="btn" id="theme-btn" aria-haspopup="true" aria-expanded="false" onclick="toggleDropdown('theme-menu', event)" title="切换皮肤与阅读外观">
+              <span id="theme-icon">☀️ 浅色</span>
+            </button>
+            <div class="dropdown-menu dropdown-right theme-popover" id="theme-menu" role="dialog" aria-label="阅读外观">
+              <div class="theme-pop-label">阅读皮肤</div>
+              <div class="theme-swatch-grid" id="theme-swatch-grid">
+                <button type="button" class="theme-swatch-btn" data-theme-id="light" onclick="selectTheme('light')">
+                  <span class="theme-swatch-dot" style="background:linear-gradient(135deg,#ffffff 55%,#2563eb 55%)"></span>
+                  <span>浅色</span>
+                </button>
+                <button type="button" class="theme-swatch-btn" data-theme-id="sepia" onclick="selectTheme('sepia')">
+                  <span class="theme-swatch-dot" style="background:linear-gradient(135deg,#fbf7ee 55%,#d97706 55%)"></span>
+                  <span>羊皮纸</span>
+                </button>
+                <button type="button" class="theme-swatch-btn" data-theme-id="forest" onclick="selectTheme('forest')">
+                  <span class="theme-swatch-dot" style="background:linear-gradient(135deg,#f2f8f4 55%,#16a34a 55%)"></span>
+                  <span>护眼绿</span>
+                </button>
+                <button type="button" class="theme-swatch-btn" data-theme-id="dark" onclick="selectTheme('dark')">
+                  <span class="theme-swatch-dot" style="background:linear-gradient(135deg,#111214 55%,#3b82f6 55%)"></span>
+                  <span>深色</span>
+                </button>
+                <button type="button" class="theme-swatch-btn" data-theme-id="nord" onclick="selectTheme('nord')">
+                  <span class="theme-swatch-dot" style="background:linear-gradient(135deg,#242933 55%,#88c0d0 55%)"></span>
+                  <span>暗夜蓝灰</span>
+                </button>
+                <button type="button" class="theme-swatch-btn" data-theme-id="system" onclick="selectTheme('system')">
+                  <span class="theme-swatch-dot" style="background:linear-gradient(135deg,#ffffff 50%,#191b20 50%)"></span>
+                  <span>跟随系统</span>
+                </button>
+              </div>
+              <div class="theme-pop-row">
+                <span class="theme-pop-label">正文字体</span>
+                <div class="appearance-seg">
+                  <button type="button" class="appearance-seg-btn" data-font-id="sans" onclick="setFontFamily('sans', true)">默认黑体</button>
+                  <button type="button" class="appearance-seg-btn" data-font-id="serif" onclick="setFontFamily('serif', true)">书卷衬线</button>
+                </div>
+              </div>
+              <div class="theme-pop-row">
+                <span class="theme-pop-label">版面宽度</span>
+                <div class="appearance-seg">
+                  <button type="button" class="appearance-seg-btn" data-width-id="narrow" onclick="setContentWidth('narrow', true)">紧凑</button>
+                  <button type="button" class="appearance-seg-btn" data-width-id="standard" onclick="setContentWidth('standard', true)">标准</button>
+                  <button type="button" class="appearance-seg-btn" data-width-id="wide" onclick="setContentWidth('wide', true)">宽屏</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <span class="toolbar-sep" role="separator" aria-orientation="vertical"></span>
@@ -275,7 +322,7 @@
 
       <div class="ota-meta-row">
         <span>点击下方按钮检查是否有新版本。</span>
-        <span class="version-pill">当前版本: <code id="ota-current-ver">v2.4.1</code></span>
+        <span class="version-pill">当前版本: <code id="ota-current-ver">v2.4.2</code></span>
       </div>
 
       <div class="ota-form-stack">

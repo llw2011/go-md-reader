@@ -460,6 +460,103 @@
   text-overflow: ellipsis;
 }
 
+/* Theme & Appearance Picker Popover */
+.theme-popover {
+  min-width: 268px;
+  max-width: 300px;
+  padding: 12px;
+  cursor: default;
+}
+
+.theme-pop-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 7px;
+}
+
+.theme-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.theme-swatch-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.theme-swatch-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-strong);
+}
+
+.theme-swatch-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.theme-swatch-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-strong);
+  flex-shrink: 0;
+}
+
+.theme-pop-row {
+  margin-top: 10px;
+}
+
+.appearance-seg {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--seg-track);
+  border: 1px solid var(--border-color);
+}
+
+.appearance-seg-btn {
+  flex: 1;
+  padding: 5px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.appearance-seg-btn:hover {
+  color: var(--text-main);
+}
+
+.appearance-seg-btn.active {
+  background: linear-gradient(180deg, var(--btn-bg-top) 0%, var(--btn-bg-bottom) 100%);
+  color: var(--text-main);
+  font-weight: 600;
+  box-shadow: var(--card-shadow-sm);
+}
+
 /* In-page Search Bar (floating MinimalCard pill) */
 .search-container {
   display: none;

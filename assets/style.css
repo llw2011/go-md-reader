@@ -84,6 +84,42 @@
   margin: 2em 0;
 }
 
+.markdown-body blockquote {
+  margin: 1.15em 0;
+  padding: 10px 16px;
+  border-left: 4px solid var(--quote-bar);
+  border-radius: 0 8px 8px 0;
+  background-color: var(--quote-bg);
+  color: var(--text-muted);
+}
+
+.markdown-body blockquote > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  line-height: 1.25;
+  color: var(--text-main);
+  background-color: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  vertical-align: middle;
+}
+
+.markdown-body input[type="checkbox"] {
+  margin-right: 6px;
+  vertical-align: -0.1em;
+}
+
 /* Interactive Tables */
 .table-wrapper {
   position: relative;
@@ -170,34 +206,34 @@
 }
 
 .alert-note {
-  border-color: #0969da;
-  background-color: rgba(9, 105, 218, 0.08);
+  border-color: var(--alert-note);
+  background-color: var(--alert-note-bg);
 }
-.alert-note .alert-title { color: #0969da; }
+.alert-note .alert-title { color: var(--alert-note); }
 
 .alert-tip {
-  border-color: #1a7f37;
-  background-color: rgba(26, 127, 55, 0.08);
+  border-color: var(--alert-tip);
+  background-color: var(--alert-tip-bg);
 }
-.alert-tip .alert-title { color: #1a7f37; }
+.alert-tip .alert-title { color: var(--alert-tip); }
 
 .alert-important {
-  border-color: #8250df;
-  background-color: rgba(130, 80, 223, 0.08);
+  border-color: var(--alert-important);
+  background-color: var(--alert-important-bg);
 }
-.alert-important .alert-title { color: #8250df; }
+.alert-important .alert-title { color: var(--alert-important); }
 
 .alert-warning {
-  border-color: #9a6700;
-  background-color: rgba(154, 103, 0, 0.08);
+  border-color: var(--alert-warning);
+  background-color: var(--alert-warning-bg);
 }
-.alert-warning .alert-title { color: #9a6700; }
+.alert-warning .alert-title { color: var(--alert-warning); }
 
 .alert-caution {
-  border-color: #cf222e;
-  background-color: rgba(207, 34, 46, 0.08);
+  border-color: var(--alert-caution);
+  background-color: var(--alert-caution-bg);
 }
-.alert-caution .alert-title { color: #cf222e; }
+.alert-caution .alert-title { color: var(--alert-caution); }
 
 /* Inline code */
 .markdown-body code:not(pre code) {
@@ -235,6 +271,55 @@
   background: transparent;
   padding: 0;
   border: none;
+  color: var(--text-main);
+}
+
+/* Theme-aware Chroma Syntax Highlighting (CSS classes) */
+.markdown-body pre.chroma {
+  color: var(--text-main);
+  background-color: var(--code-bg);
+}
+.chroma .c, .chroma .ch, .chroma .cm, .chroma .cp, .chroma .cpf, .chroma .c1, .chroma .cs {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.chroma .k, .chroma .kc, .chroma .kd, .chroma .kn, .chroma .kp, .chroma .kr {
+  color: var(--hl-keyword);
+  font-weight: 600;
+}
+.chroma .kt, .chroma .nc, .chroma .no, .chroma .nd, .chroma .ne {
+  color: var(--hl-type);
+}
+.chroma .nf, .chroma .fm {
+  color: var(--hl-func);
+}
+.chroma .s, .chroma .sa, .chroma .sb, .chroma .sc, .chroma .dl, .chroma .sd,
+.chroma .s2, .chroma .se, .chroma .sh, .chroma .si, .chroma .sx, .chroma .sr,
+.chroma .s1, .chroma .ss {
+  color: var(--hl-string);
+}
+.chroma .m, .chroma .mb, .chroma .mf, .chroma .mh, .chroma .mi, .chroma .il,
+.chroma .mo, .chroma .l, .chroma .ld {
+  color: var(--hl-number);
+}
+.chroma .o, .chroma .ow {
+  color: var(--hl-op);
+}
+.chroma .nt, .chroma .na, .chroma .nb, .chroma .nv, .chroma .vc, .chroma .vg, .chroma .vi {
+  color: var(--hl-attr);
+}
+.chroma .gd {
+  color: var(--hl-del);
+  background-color: var(--hl-del-bg);
+}
+.chroma .gi {
+  color: var(--hl-add);
+  background-color: var(--hl-add-bg);
+}
+.chroma .ge { font-style: italic; }
+.chroma .gs { font-weight: 700; }
+.chroma .err {
+  color: var(--hl-del);
 }
 
 .code-actions {
@@ -382,14 +467,20 @@
     break-inside: avoid !important;
   }
 
-  pre {
+  pre, pre.chroma {
     background-color: #f8fafc !important;
+    color: #1e293b !important;
     border: 1px solid #cbd5e1 !important;
     border-radius: 4px !important;
     padding: 10px 14px !important;
     font-size: 8.5pt !important;
     white-space: pre-wrap !important;
     word-break: break-all !important;
+  }
+
+  .chroma span {
+    color: #1e293b !important;
+    background: transparent !important;
   }
 
   table {

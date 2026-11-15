@@ -30,7 +30,7 @@
         <span class="titlebar-brand">Go Markdown Reader</span>
         <span class="titlebar-sep" aria-hidden="true"></span>
         <span class="titlebar-doc" id="titlebar-doc-name">就绪</span>
-        <span class="titlebar-ver-pill">v2.3.2</span>
+        <span class="titlebar-ver-pill">v2.4.0</span>
       </div>
 
       <div class="titlebar-spacer" aria-hidden="true"></div>
@@ -109,6 +109,7 @@
             </ul>
           </div>
 
+          <button type="button" class="btn" onclick="showAddonsModal()" title="管理按需离线扩展包 (KaTeX / Mermaid · MIT)">🧩 扩展</button>
           <button type="button" class="btn" onclick="showAssocModal()" title="配置文件格式默认关联 (.md / .txt 等) 与托盘偏好">⚙️ 关联</button>
           <button type="button" class="btn" onclick="showOTAModal()" title="在线检查更新与版本管理">☁️ 更新</button>
           <button type="button" class="btn btn-icon" onclick="loadFile(true)" aria-label="刷新文档" title="刷新文档 (F5)">🔄</button>
@@ -274,7 +275,7 @@
 
       <div class="ota-meta-row">
         <span>仅在您主动点击检查时获取官方最新版本，零静默外联。</span>
-        <span class="version-pill">当前版本: <code id="ota-current-ver">v2.3.2</code></span>
+        <span class="version-pill">当前版本: <code id="ota-current-ver">v2.4.0</code></span>
       </div>
 
       <div class="ota-form-stack">
@@ -311,6 +312,24 @@
     </div>
   </div>
 
+  <!-- Curated MIT Addons Modal -->
+  <div class="modal-backdrop" id="addons-modal" role="dialog" aria-modal="true" aria-labelledby="addons-modal-title" onclick="closeAddonsModal(event)">
+    <div class="stats-card stats-card-assoc" onclick="event.stopPropagation()">
+      <div class="stats-card-header">
+        <div class="stats-card-title" id="addons-modal-title">🧩 按需离线扩展包 (MIT)</div>
+        <button type="button" class="stats-card-close" onclick="closeAddonsModal()" aria-label="关闭扩展管理">&times;</button>
+      </div>
+      <div class="modal-subtitle">
+        主程序默认零额外体积；所有扩展仅在您手动点击启用时拉取、强制 SHA-256 校验，此后完全离线运行于本地缓存。
+      </div>
+      <div id="addons-list" class="addons-list"></div>
+      <div class="modal-footer-bar">
+        <span style="font-size:11.5px; color:var(--text-muted);">另已内置：Emoji 短代码 (:rocket:) · HTML / EPUB 转 Markdown</span>
+        <button type="button" class="btn" onclick="closeAddonsModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Image Lightbox Modal -->
   <div class="modal-backdrop" id="lightbox-modal" onclick="closeLightbox()">
     <img id="lightbox-img" src="" alt="Preview" onclick="event.stopPropagation()">
@@ -334,6 +353,7 @@
 
   <script src="assets/rpc.js"></script>
   <script src="assets/doc.js"></script>
+  <script src="assets/addons.js"></script>
   <script src="assets/enhance.js"></script>
   <script src="assets/editor.js"></script>
   <script src="assets/settings.js"></script>

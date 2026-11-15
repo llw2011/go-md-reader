@@ -269,6 +269,8 @@ window.__onBackendEvent = function (event, payload) {
     showOTAModal();
   } else if (event === "ota-progress") {
     renderOTAProgress(payload);
+  } else if (event === "addon-progress") {
+    renderAddonProgress(payload);
   }
 };
 
@@ -313,6 +315,7 @@ function initShortcuts() {
       closeStatsModal();
       closeAssocModal();
       closeOTAModal();
+      closeAddonsModal();
       closeAllDropdowns();
       closeLightbox();
     } else if (e.key === "Enter") {

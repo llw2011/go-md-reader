@@ -35,7 +35,7 @@ async function loadFile(preserveScroll = false) {
           <div class="empty-title">欢迎使用 Go 全能文档与 Markdown 阅读器</div>
           <div class="empty-desc">
             100% 本地离线运行 · 零外联 · 零遥测 · 毫秒级启动<br>
-            支持直接拖入或打开 <strong>Markdown (.md)</strong>、<strong>Word (.docx)</strong>、<strong>Excel (.xlsx)</strong>、<strong>PPT (.pptx)</strong>、<strong>CSV / JSON / 代码文件</strong>
+            支持直接拖入或打开 <strong>Markdown (.md)</strong>、<strong>Word (.docx)</strong>、<strong>Excel (.xlsx)</strong>、<strong>PPT (.pptx)</strong>、<strong>EPUB / HTML / CSV / JSON / 代码</strong>
           </div>
           <div class="empty-actions">
             <button type="button" class="btn btn-primary btn-lg" onclick="openFileDialog()">
@@ -150,6 +150,9 @@ function renderDocumentHTML(htmlStr, tocItems) {
   renderTOC(currentTOC);
   if (tocCountEl) tocCountEl.textContent = `${currentTOC.length}`;
 
+  if (typeof enhanceRichMedia === "function") {
+    enhanceRichMedia();
+  }
   enhanceCodeBlocks();
   enhanceAlertCallouts();
   enhanceTables();
@@ -212,6 +215,9 @@ function getFileIcon(ext) {
     case ".csv":
     case ".tsv": return "📊";
     case ".pptx": return "🖥️";
+    case ".epub": return "📚";
+    case ".html":
+    case ".htm": return "🌐";
     case ".json":
     case ".yaml":
     case ".yml": return "⚙️";

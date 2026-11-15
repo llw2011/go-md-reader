@@ -469,6 +469,9 @@ function setTheme(themeId, save = true) {
   }
   const icon = document.getElementById("theme-icon");
   if (icon) icon.textContent = found.label;
+  if (typeof rerenderMermaidForTheme === "function") {
+    rerenderMermaidForTheme();
+  }
 }
 
 let currentFontSize = 16;

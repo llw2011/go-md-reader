@@ -32,8 +32,10 @@ func instanceRecordPath() string {
 }
 
 var (
-	kernel32DLL      = windows.NewLazySystemDLL("kernel32.dll")
-	procCreateMutexW = kernel32DLL.NewProc("CreateMutexW")
+	kernel32DLL                = windows.NewLazySystemDLL("kernel32.dll")
+	user32DLL                  = windows.NewLazySystemDLL("user32.dll")
+	procCreateMutexW           = kernel32DLL.NewProc("CreateMutexW")
+	procAllowSetForegroundWin  = user32DLL.NewProc("AllowSetForegroundWindow")
 )
 
 // acquireSingleInstanceMutex attempts to claim the per-session primary instance mutex.
@@ -104,6 +106,12 @@ func activateExistingInstance(docPath string, timeout time.Duration) bool {
 			var rec instanceRecord
 			if json.Unmarshal(data, &rec) == nil && rec.PID != os.Getpid() && rec.Port > 0 && rec.Nonce != "" {
 				if isPIDAlive(rec.PID) {
+					// Transfer Windows foreground lock privilege from this newly launched
+					// Explorer/desktop process to the existing primary window process.
+					if ok, _, _ := procAllowSetForegroundWin.Call(uintptr(rec.PID)); ok == 0 {
+						const asfwAny = ^uintptr(0)
+						_, _, _ = procAllowSetForegroundWin.Call(asfwAny)
+					}
 					url := fmt.Sprintf("http://127.0.0.1:%d/%s/activate", rec.Port, rec.Nonce)
 					req, reqErr := http.NewRequest(http.MethodPost, url, bytes.NewReader(payloadBytes))
 					if reqErr == nil {

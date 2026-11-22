@@ -21,3 +21,7 @@ func TestShouldShowOnToggle(t *testing.T) {
 		}
 	}
 }
+
+func TestForceForegroundWindowZeroHandleIsSafe(t *testing.T) {
+	ForceForegroundWindow(0)
+}

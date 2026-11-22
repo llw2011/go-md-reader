@@ -106,18 +106,57 @@ func (m *Manager) SetMinimizeToTray(enabled bool) {
 	savePrefs(prefs{MinimizeToTray: enabled})
 }
 
+// ForceForegroundWindow reliably restores, raises, and focuses hwnd to the front on Windows.
+// It handles windows restored from tray, minimized windows, and background focus-lock transfers.
+func ForceForegroundWindow(hwnd uintptr) {
+	if hwnd == 0 {
+		return
+	}
+	iconic, _, _ := isIconic.Call(hwnd)
+	if iconic != 0 {
+		_, _, _ = showWindow.Call(hwnd, swRestore)
+	} else {
+		_, _, _ = showWindow.Call(hwnd, swShow)
+	}
+
+	_, _, _ = bringWindowToTop.Call(hwnd)
+	_, _, _ = setForegroundWindow.Call(hwnd)
+
+	fg, _, _ := getForegroundWindow.Call()
+	if fg != hwnd {
+		curThread, _, _ := getCurrentThreadId.Call()
+		var fgThread uintptr
+		if fg != 0 {
+			fgThread, _, _ = getWindowThreadProcessId.Call(fg, 0)
+		}
+		if fgThread != 0 && fgThread != curThread {
+			_, _, _ = attachThreadInput.Call(curThread, fgThread, 1)
+			_, _, _ = bringWindowToTop.Call(hwnd)
+			_, _, _ = setForegroundWindow.Call(hwnd)
+			_, _, _ = setFocus.Call(hwnd)
+			_, _, _ = attachThreadInput.Call(curThread, fgThread, 0)
+		}
+
+		// Brief Z-order raise above normal windows (without staying always-on-top).
+		const (
+			hwndTopmost   = ^uintptr(0) // -1
+			hwndNotopmost = ^uintptr(1) // -2
+			swpNoMove     = 0x0002
+			swpNoSize     = 0x0001
+			swpShowWindow = 0x0040
+		)
+		_, _, _ = setWindowPos.Call(hwnd, hwndTopmost, 0, 0, 0, 0, swpNoMove|swpNoSize|swpShowWindow)
+		_, _, _ = setWindowPos.Call(hwnd, hwndNotopmost, 0, 0, 0, 0, swpNoMove|swpNoSize|swpShowWindow)
+		_, _, _ = setForegroundWindow.Call(hwnd)
+	}
+}
+
 // ShowMainWindow restores and focuses the main reader window.
 func (m *Manager) ShowMainWindow() {
 	if m == nil || m.cfg.MainHWND == 0 {
 		return
 	}
-	iconic, _, _ := isIconic.Call(m.cfg.MainHWND)
-	if iconic != 0 {
-		_, _, _ = showWindow.Call(m.cfg.MainHWND, swRestore)
-	} else {
-		_, _, _ = showWindow.Call(m.cfg.MainHWND, swShow)
-	}
-	_, _, _ = setForegroundWindow.Call(m.cfg.MainHWND)
+	ForceForegroundWindow(m.cfg.MainHWND)
 }
 
 // HideMainWindow hides the main window cleanly to the system tray.

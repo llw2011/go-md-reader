@@ -163,6 +163,12 @@ func main() {
 		log.Printf("绑定 WebView 通信桥失败: %v", err)
 	}
 
+	// Ensure cold-launched windows (e.g. desktop associated file double-click) come straight to front.
+	hwnd := uintptr(w.Window())
+	w.Dispatch(func() {
+		tray.ForceForegroundWindow(hwnd)
+	})
+
 	w.Navigate(srv.URL())
 	w.Run()
 }

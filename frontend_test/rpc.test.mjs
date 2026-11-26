@@ -34,7 +34,10 @@ function loadRpcSandbox(overrides = {}) {
     pendingSize: () => vm.runInContext(`rpcPending.size`, ctx),
     escapeHtml: vm.runInContext(`escapeHtml`, ctx),
     escapeRegex: vm.runInContext(`escapeRegex`, ctx),
-    arrayBufferToBase64: vm.runInContext(`arrayBufferToBase64`, ctx)
+    arrayBufferToBase64: vm.runInContext(`arrayBufferToBase64`, ctx),
+    describeLoadError: vm.runInContext(`describeLoadError`, ctx),
+    calcSyncedScrollTop: vm.runInContext(`calcSyncedScrollTop`, ctx),
+    computeTOCParents: vm.runInContext(`computeTOCParents`, ctx)
   };
 }
 
@@ -113,4 +116,37 @@ test("rpc.js pure helpers escape HTML/regex and encode large binary buffers", ()
   for (let i = 0; i < buf.length; i++) buf[i] = i & 0xff;
   const b64 = env.arrayBufferToBase64(buf.buffer);
   assert.equal(Buffer.from(b64, "base64").compare(Buffer.from(buf)), 0);
+});
+
+test("describeLoadError maps known and unknown error kinds to user-friendly messages", () => {
+  const env = loadRpcSandbox();
+  assert.equal(env.describeLoadError("notfound").title, "找不到这个文件");
+  assert.equal(env.describeLoadError("denied").icon, "🔒");
+  assert.equal(env.describeLoadError("parse").title, "文件内容无法显示");
+  assert.equal(env.describeLoadError("something-else").title, env.describeLoadError("").title);
+});
+
+test("calcSyncedScrollTop scales scroll offsets proportionally and guards zero range", () => {
+  const env = loadRpcSandbox();
+  assert.equal(env.calcSyncedScrollTop(50, 100, 100, 1000, 200), 0);
+  assert.equal(env.calcSyncedScrollTop(200, 1000, 200, 2200, 200), 500);
+  assert.equal(env.calcSyncedScrollTop(9999, 500, 100, 900, 100), 800);
+});
+
+test("computeTOCParents builds heading parent links and child flags cleanly", () => {
+  const env = loadRpcSandbox();
+  const nodes = env.computeTOCParents([
+    { level: 1, id: "a", title: "A" },
+    { level: 2, id: "a1", title: "A1" },
+    { level: 3, id: "a1x", title: "A1x" },
+    { level: 1, id: "b", title: "B" }
+  ]);
+  assert.equal(nodes[0].parentIndex, -1);
+  assert.equal(nodes[0].hasChildren, true);
+  assert.equal(nodes[1].parentIndex, 0);
+  assert.equal(nodes[1].hasChildren, true);
+  assert.equal(nodes[2].parentIndex, 1);
+  assert.equal(nodes[2].hasChildren, false);
+  assert.equal(nodes[3].parentIndex, -1);
+  assert.equal(nodes[3].hasChildren, false);
 });

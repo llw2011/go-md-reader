@@ -28,7 +28,7 @@
         <span class="titlebar-brand">Go Markdown Reader</span>
         <span class="titlebar-sep" aria-hidden="true"></span>
         <span class="titlebar-doc" id="titlebar-doc-name">就绪</span>
-        <span class="titlebar-ver-pill">v2.4.3</span>
+        <span class="titlebar-ver-pill">v2.4.4</span>
       </div>
 
       <div class="titlebar-spacer" aria-hidden="true"></div>
@@ -51,12 +51,12 @@
     <header class="toolbar" role="toolbar" focusgroup="toolbar wrap" aria-label="文档工具栏" aria-controls="content-area">
       <div class="toolbar-left">
         <div class="toolbar-group" role="group" aria-label="文件与导航">
-          <button type="button" class="btn" id="sidebar-btn" aria-pressed="true" onclick="toggleSidebar()" title="展开/折叠侧边栏 (Ctrl+B)">📑 侧栏</button>
-          <button type="button" class="btn btn-primary" onclick="openFileDialog()" title="打开文件 (Ctrl+O)">📂 打开</button>
+          <button type="button" class="btn" id="sidebar-btn" aria-pressed="true" aria-label="侧栏" onclick="toggleSidebar()" title="展开/折叠侧边栏 (Ctrl+B)">📑<span class="btn-label"> 侧栏</span></button>
+          <button type="button" class="btn btn-primary" aria-label="打开" onclick="openFileDialog()" title="打开文件 (Ctrl+O)">📂<span class="btn-label"> 打开</span></button>
 
           <!-- Recent Files Dropdown -->
           <div class="dropdown">
-            <button type="button" class="btn" id="recent-btn" aria-haspopup="menu" aria-expanded="false" onclick="toggleDropdown('recent-menu', event)" title="最近打开的文档历史">🕒 最近 ▾</button>
+            <button type="button" class="btn" id="recent-btn" aria-haspopup="menu" aria-expanded="false" aria-label="最近" onclick="toggleDropdown('recent-menu', event)" title="最近打开的文档历史">🕒<span class="btn-label"> 最近</span> ▾</button>
             <ul class="dropdown-menu" id="recent-menu" role="menu" aria-label="最近打开的文档"></ul>
           </div>
         </div>
@@ -66,15 +66,12 @@
 
       <div class="toolbar-right">
         <div class="toolbar-group" role="group" aria-label="视图与排版">
-          <button type="button" class="btn" id="edit-btn" aria-pressed="false" onclick="toggleEditor()" title="编辑文档 (Ctrl+E)">✏️ 编辑/源码</button>
-          <button type="button" class="btn" id="format-btn" onclick="autoFormatDocument()" title="一键排版 (Ctrl+Shift+F)">✨ 排版</button>
-          <button type="button" class="btn" id="wide-btn" aria-pressed="false" onclick="toggleWideMode()" title="切换宽屏视图">↔️ 宽屏</button>
-          <button type="button" class="btn" onclick="toggleSearch()" title="查找文字 (Ctrl+F)">🔍 搜索</button>
-          <button type="button" class="btn btn-compact" onclick="adjustFontSize(-1)" aria-label="缩小字号" title="缩小字号 (Ctrl + -)">A-</button>
-          <button type="button" class="btn btn-compact" onclick="adjustFontSize(1)" aria-label="放大字号" title="放大字号 (Ctrl + +)">A+</button>
+          <button type="button" class="btn" id="edit-btn" aria-pressed="false" aria-label="编辑" onclick="toggleEditor()" title="编辑文档 (Ctrl+E)">✏️<span class="btn-label"> 编辑</span></button>
+          <button type="button" class="btn" id="format-btn" aria-label="排版" onclick="autoFormatDocument()" title="一键排版 (Ctrl+Shift+F)">✨<span class="btn-label"> 排版</span></button>
+          <button type="button" class="btn" aria-label="搜索" onclick="toggleSearch()" title="查找文字 (Ctrl+F)">🔍<span class="btn-label"> 搜索</span></button>
           <div class="dropdown">
-            <button type="button" class="btn" id="theme-btn" aria-haspopup="true" aria-expanded="false" onclick="toggleDropdown('theme-menu', event)" title="切换皮肤与阅读外观">
-              <span id="theme-icon">☀️ 浅色</span>
+            <button type="button" class="btn" id="theme-btn" aria-haspopup="true" aria-expanded="false" aria-label="外观" onclick="toggleDropdown('theme-menu', event)" title="外观">
+              <span id="theme-icon">☀️</span><span class="btn-label" id="theme-label"> 浅色</span> ▾
             </button>
             <div class="dropdown-menu dropdown-right theme-popover" id="theme-menu" role="dialog" aria-label="阅读外观">
               <div class="theme-pop-label">阅读皮肤</div>
@@ -119,6 +116,15 @@
                   <button type="button" class="appearance-seg-btn" data-width-id="wide" onclick="setContentWidth('wide', true)">宽屏</button>
                 </div>
               </div>
+              <div class="theme-pop-row">
+                <span class="theme-pop-label">字号</span>
+                <div class="appearance-seg">
+                  <button type="button" class="appearance-seg-btn" onclick="adjustFontSize(-1)" aria-label="缩小字号">A-</button>
+                  <span class="font-size-val" id="font-size-val">16</span>
+                  <button type="button" class="appearance-seg-btn" onclick="adjustFontSize(1)" aria-label="放大字号">A+</button>
+                  <button type="button" class="appearance-seg-btn" onclick="adjustFontSize(0)">重置</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -128,7 +134,7 @@
         <div class="toolbar-group" role="group" aria-label="导出与系统设置">
           <!-- Export Suite Dropdown -->
           <div class="dropdown">
-            <button type="button" class="btn" id="export-btn" aria-haspopup="menu" aria-expanded="false" onclick="toggleDropdown('export-menu', event)" title="导出与复制">📤 导出 ▾</button>
+            <button type="button" class="btn" id="export-btn" aria-haspopup="menu" aria-expanded="false" aria-label="导出" onclick="toggleDropdown('export-menu', event)" title="导出与复制">📤<span class="btn-label"> 导出</span> ▾</button>
             <ul class="dropdown-menu dropdown-right" id="export-menu" role="menu" aria-label="导出选项">
               <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="saveAsMarkdown()">
                 <span class="dropdown-item-name">💾 另存为 Markdown (.md)</span>
@@ -153,9 +159,29 @@
             </ul>
           </div>
 
-          <button type="button" class="btn" onclick="showAddonsModal()" title="扩展功能">🧩 扩展</button>
-          <button type="button" class="btn" onclick="showAssocModal()" title="默认打开方式与设置">⚙️ 关联</button>
-          <button type="button" class="btn" onclick="showOTAModal()" title="检查更新">☁️ 更新</button>
+          <!-- Settings Dropdown -->
+          <div class="dropdown">
+            <button type="button" class="btn" id="settings-btn" aria-haspopup="menu" aria-expanded="false" aria-label="设置" onclick="toggleDropdown('settings-menu', event)" title="设置">⚙️<span class="btn-label"> 设置</span> ▾</button>
+            <ul class="dropdown-menu dropdown-right" id="settings-menu" role="menu" aria-label="设置">
+              <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="closeAllDropdowns(); showAddonsModal()">
+                <span class="dropdown-item-name">🧩 扩展功能</span>
+                <span class="dropdown-item-path">按需安装数学公式、流程图</span>
+              </li>
+              <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="closeAllDropdowns(); showAssocModal()">
+                <span class="dropdown-item-name">⚙️ 默认打开方式</span>
+                <span class="dropdown-item-path">文件关联、右键菜单、托盘</span>
+              </li>
+              <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="closeAllDropdowns(); showOTAModal()">
+                <span class="dropdown-item-name">☁️ 检查更新</span>
+                <span class="dropdown-item-path">当前版本与在线升级</span>
+              </li>
+              <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="closeAllDropdowns(); showShortcutsModal()">
+                <span class="dropdown-item-name">⌨️ 快捷键说明</span>
+                <span class="dropdown-item-path">查看全部键盘快捷键 (?)</span>
+              </li>
+            </ul>
+          </div>
+
           <button type="button" class="btn btn-icon" onclick="loadFile(true)" aria-label="刷新文档" title="刷新文档 (F5)">🔄</button>
         </div>
       </div>
@@ -189,7 +215,10 @@
 
       <!-- Panel 1: Table of Contents -->
       <div class="sidebar-panel active" id="panel-toc">
-        <input type="text" class="toc-filter" placeholder="筛选章节标题..." oninput="filterTOC(this.value)">
+        <div class="toc-toolbar">
+          <input type="text" class="toc-filter" id="toc-filter-input" placeholder="筛选章节标题..." oninput="filterTOC(this.value)">
+          <button type="button" class="btn btn-compact toc-fold-all-btn" id="toc-fold-all-btn" onclick="toggleAllTOCFold()" title="折叠 / 展开子章节">折叠</button>
+        </div>
         <ul class="toc-list" id="toc-list"></ul>
       </div>
 
@@ -199,6 +228,7 @@
         <ul class="file-list" id="file-list"></ul>
       </div>
     </aside>
+    <div class="sidebar-resizer" id="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="拖动调整侧栏宽度（双击重置）" title="拖动调整宽度（双击重置）"></div>
 
     <!-- Split-Pane Live Markdown Editor -->
     <section class="editor-pane" id="editor-pane">
@@ -319,7 +349,7 @@
 
       <div class="ota-meta-row">
         <span>点击下方按钮检查是否有新版本。</span>
-        <span class="version-pill">当前版本: <code id="ota-current-ver">v2.4.3</code></span>
+        <span class="version-pill">当前版本: <code id="ota-current-ver">v2.4.4</code></span>
       </div>
 
       <div class="ota-form-stack">
@@ -371,6 +401,39 @@
         <span style="font-size:11.5px; color:var(--text-muted);">已内置：Emoji 表情、网页 / EPUB 阅读</span>
         <button type="button" class="btn" onclick="closeAddonsModal()">关闭</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div class="modal-backdrop" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-modal-title" onclick="closeShortcutsModal(event)">
+    <div class="stats-card" onclick="event.stopPropagation()">
+      <div class="stats-card-header">
+        <div class="stats-card-title" id="shortcuts-modal-title">⌨️ 快捷键说明</div>
+        <button type="button" class="stats-card-close" onclick="closeShortcutsModal()" aria-label="关闭快捷键说明">&times;</button>
+      </div>
+      <div class="shortcuts-grid">
+        <div class="shortcut-row"><span>打开文档</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>O</kbd></span></div>
+        <div class="shortcut-row"><span>展开 / 收起侧栏</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>B</kbd></span></div>
+        <div class="shortcut-row"><span>编辑 / 源码分屏</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>E</kbd></span></div>
+        <div class="shortcut-row"><span>保存当前修改</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>S</kbd></span></div>
+        <div class="shortcut-row"><span>一键自动排版</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd></span></div>
+        <div class="shortcut-row"><span>页内查找文字</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>F</kbd></span></div>
+        <div class="shortcut-row"><span>上 / 下一个匹配</span><span class="shortcut-keys"><kbd>Shift</kbd>+<kbd>Enter</kbd> / <kbd>Enter</kbd></span></div>
+        <div class="shortcut-row"><span>打印 / 存为 PDF</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>P</kbd></span></div>
+        <div class="shortcut-row"><span>放大 / 缩小 / 重置字号</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd></span></div>
+        <div class="shortcut-row"><span>刷新文档</span><span class="shortcut-keys"><kbd>F5</kbd> / <kbd>Ctrl</kbd>+<kbd>R</kbd></span></div>
+        <div class="shortcut-row"><span>快捷键说明</span><span class="shortcut-keys"><kbd>?</kbd></span></div>
+        <div class="shortcut-row"><span>关闭弹窗 / 搜索栏</span><span class="shortcut-keys"><kbd>Esc</kbd></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-App Confirm Dialog -->
+  <div class="modal-backdrop" id="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message" onclick="closeConfirmDialog(event)">
+    <div class="stats-card confirm-card" onclick="event.stopPropagation()">
+      <div class="stats-card-title" id="confirm-title"></div>
+      <div class="confirm-message" id="confirm-message"></div>
+      <div class="confirm-actions" id="confirm-actions"></div>
     </div>
   </div>
 

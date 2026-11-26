@@ -1,3 +1,39 @@
+let scrollSyncLock = "";
+let scrollSyncTimer = null;
+
+function syncScrollRatio(sourceId) {
+  if (!isEditorOpen) return;
+  if (scrollSyncLock && scrollSyncLock !== sourceId) return;
+  const editorEl = document.getElementById("editor-textarea");
+  const previewEl = document.getElementById("content-area");
+  if (!editorEl || !previewEl) return;
+
+  scrollSyncLock = sourceId;
+  clearTimeout(scrollSyncTimer);
+  scrollSyncTimer = setTimeout(() => { scrollSyncLock = ""; }, 80);
+
+  if (sourceId === "editor") {
+    previewEl.scrollTop = calcSyncedScrollTop(
+      editorEl.scrollTop, editorEl.scrollHeight, editorEl.clientHeight,
+      previewEl.scrollHeight, previewEl.clientHeight
+    );
+  } else {
+    editorEl.scrollTop = calcSyncedScrollTop(
+      previewEl.scrollTop, previewEl.scrollHeight, previewEl.clientHeight,
+      editorEl.scrollHeight, editorEl.clientHeight
+    );
+  }
+}
+
+function initEditorScrollSync() {
+  const editorEl = document.getElementById("editor-textarea");
+  if (!editorEl || editorEl.dataset.syncBound) return;
+  editorEl.dataset.syncBound = "1";
+  editorEl.addEventListener("scroll", () => {
+    syncScrollRatio("editor");
+  });
+}
+
 function toggleEditor() {
   const pane = document.getElementById("editor-pane");
   const btn = document.getElementById("edit-btn");
@@ -13,6 +49,7 @@ function toggleEditor() {
       textarea.value = currentDocData.rawContent;
     }
     textarea.focus();
+    syncScrollRatio("editor");
   }
 }
 
@@ -40,6 +77,7 @@ function handleEditorInput() {
       currentDocData.html = data.html;
       currentDocData.wordCount = data.wordCount;
       renderDocumentHTML(data.html, data.toc);
+      syncScrollRatio("editor");
 
       const words = data.wordCount || 0;
       const estMinutes = Math.max(1, Math.round(words / 350));
@@ -129,7 +167,7 @@ async function saveCurrentContent() {
   const content = (isEditorOpen && textarea) ? textarea.value : (currentDocData ? currentDocData.rawContent : "");
   if (!content) {
     showToast("⚠️ 当前没有可保存的内容");
-    return;
+    return false;
   }
 
   try {
@@ -138,12 +176,14 @@ async function saveCurrentContent() {
       isEditorDirty = false;
       showToast(`✓ 已保存: ${data.path}`);
       loadFile(true);
+      return true;
     } else if (data.error) {
       showToast("❌ 保存失败: " + data.error);
     }
   } catch (err) {
     showToast("❌ 保存失败: " + err.message);
   }
+  return false;
 }
 
 async function saveAsMarkdown() {
@@ -345,16 +385,127 @@ function renderRecentMenu() {
       <span class="dropdown-item-path" title="${escapeHtml(item.path)}">${escapeHtml(item.path)}</span>
     </li>
   `).join("");
+  markMissingRecent(menu);
 }
 
-function confirmDiscardEditorChanges() {
+function removeRecentFile(path) {
+  if (!path) return;
+  const recent = Array.isArray(uiPrefsCache.recentFiles) ? uiPrefsCache.recentFiles : [];
+  const next = recent.filter(item => item.path !== path);
+  if (next.length === recent.length) return;
+  uiPrefsCache.recentFiles = next;
+  renderRecentMenu();
+  persistUIPrefs({ recentFiles: next });
+}
+
+async function markMissingRecent(container) {
+  if (!container) return;
+  const items = Array.from(container.querySelectorAll("[data-path]"));
+  if (items.length === 0) return;
+  const paths = items.map(el => el.getAttribute("data-path")).filter(Boolean);
+  if (paths.length === 0) return;
+  try {
+    const res = await rpcCall("doc.exists", { paths });
+    const existsMap = (res && res.exists) || {};
+    items.forEach(el => {
+      const p = el.getAttribute("data-path");
+      if (p && existsMap[p] === false) {
+        el.classList.add("missing");
+        el.title = "文件已不存在，点击从列表移除";
+        const pathEl = el.querySelector(".dropdown-item-path, .welcome-recent-path");
+        if (pathEl) pathEl.textContent = "文件已不存在 · 点击移除";
+      }
+    });
+  } catch (e) {}
+}
+
+let confirmResolver = null;
+
+function resolveConfirmDialog(value) {
+  const modal = document.getElementById("confirm-modal");
+  if (modal) modal.classList.remove("show");
+  const r = confirmResolver;
+  confirmResolver = null;
+  if (r) r(value);
+}
+
+function closeConfirmDialog(e) {
+  if (e && e.target !== e.currentTarget) return;
+  resolveConfirmDialog(null);
+}
+
+function showConfirmDialog({ title, message, buttons }) {
+  if (confirmResolver) {
+    resolveConfirmDialog(null);
+  }
+  const modal = document.getElementById("confirm-modal");
+  const titleEl = document.getElementById("confirm-title");
+  const msgEl = document.getElementById("confirm-message");
+  const actionsEl = document.getElementById("confirm-actions");
+  if (!modal || !titleEl || !msgEl || !actionsEl) {
+    return Promise.resolve(null);
+  }
+
+  titleEl.textContent = title || "";
+  msgEl.textContent = message || "";
+  actionsEl.innerHTML = "";
+
+  let primaryBtn = null;
+  (buttons || []).forEach(b => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = b.variant === "primary" ? "btn btn-primary" : "btn";
+    btn.textContent = b.label;
+    btn.addEventListener("click", () => resolveConfirmDialog(b.id));
+    actionsEl.appendChild(btn);
+    if (b.variant === "primary" && !primaryBtn) {
+      primaryBtn = btn;
+    }
+  });
+
+  if (!modal.dataset.escBound) {
+    modal.dataset.escBound = "1";
+    modal.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        resolveConfirmDialog(null);
+      }
+    });
+  }
+
+  modal.classList.add("show");
+  const focusTarget = primaryBtn || actionsEl.querySelector("button");
+  if (focusTarget) focusTarget.focus();
+
+  return new Promise(resolve => {
+    confirmResolver = resolve;
+  });
+}
+
+async function confirmDiscardEditorChanges() {
   if (!isEditorDirty) return true;
-  return window.confirm("当前源码编辑器有未保存的修改，确认放弃修改并切换文档吗？");
+  const choice = await showConfirmDialog({
+    title: "有未保存的修改",
+    message: "切换文档前要保存当前修改吗？",
+    buttons: [
+      { id: "save", label: "💾 保存并切换", variant: "primary" },
+      { id: "discard", label: "不保存" },
+      { id: "cancel", label: "取消" }
+    ]
+  });
+  if (choice === "save") {
+    return await saveCurrentContent();
+  }
+  if (choice === "discard") {
+    isEditorDirty = false;
+    return true;
+  }
+  return false;
 }
 
 async function openRecentPath(path) {
   closeAllDropdowns();
-  if (!confirmDiscardEditorChanges()) return;
+  if (!(await confirmDiscardEditorChanges())) return;
   try {
     await rpcCall("doc.open", { mode: "path", path });
     loadFile(false);
@@ -364,7 +515,7 @@ async function openRecentPath(path) {
 }
 
 async function openFileDialog() {
-  if (!confirmDiscardEditorChanges()) return;
+  if (!(await confirmDiscardEditorChanges())) return;
   try {
     const data = await rpcCall("doc.open", { mode: "dialog" });
     if (data.opened) {

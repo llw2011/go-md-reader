@@ -49,10 +49,15 @@ async function toggleNotepadReplacement() {
   const btn = document.getElementById("btn-notepad-toggle");
   const wantReplace = !currentNotepadReplaced;
   if (wantReplace) {
-    const confirmed = window.confirm(
-      "将用本软件替代系统记事本（需要管理员权限），随时可恢复原样。\n确定继续吗？"
-    );
-    if (!confirmed) return;
+    const choice = await showConfirmDialog({
+      title: "设为默认记事本",
+      message: "将用本软件替代系统记事本（需要管理员权限），随时可恢复原样。",
+      buttons: [
+        { id: "ok", label: "确定", variant: "primary" },
+        { id: "cancel", label: "取消" }
+      ]
+    });
+    if (choice !== "ok") return;
   }
   if (btn) btn.disabled = true;
   try {
@@ -454,6 +459,7 @@ async function initReadingPrefs() {
     currentFontSize = savedFont;
     document.documentElement.style.setProperty("--content-font-size", `${currentFontSize}px`);
   }
+  updateFontSizeLabel();
 
   const sidebar = document.getElementById("sidebar");
   const sidebarBtn = document.getElementById("sidebar-btn");
@@ -465,6 +471,61 @@ async function initReadingPrefs() {
     sidebarBtn.setAttribute("aria-pressed", String(isVisible));
     sidebarBtn.classList.toggle("active", isVisible);
   }
+  applySidebarWidth(uiPrefsCache.sidebarWidth || 292, false);
+}
+
+function applySidebarWidth(px, save = false) {
+  const w = Math.max(200, Math.min(520, Math.round(Number(px) || 292)));
+  document.documentElement.style.setProperty("--sidebar-width", `${w}px`);
+  uiPrefsCache.sidebarWidth = w;
+  if (save) {
+    persistUIPrefs({ sidebarWidth: w });
+  }
+}
+
+function initSidebarResizer() {
+  const resizer = document.getElementById("sidebar-resizer");
+  const sidebar = document.getElementById("sidebar");
+  if (!resizer || !sidebar) return;
+
+  resizer.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    resizer.classList.add("dragging");
+    sidebar.classList.add("resizing");
+    document.body.style.cursor = "col-resize";
+
+    const onMove = (ev) => {
+      applySidebarWidth(ev.clientX, false);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      resizer.classList.remove("dragging");
+      sidebar.classList.remove("resizing");
+      document.body.style.cursor = "";
+      applySidebarWidth(uiPrefsCache.sidebarWidth, true);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  });
+
+  resizer.addEventListener("dblclick", () => {
+    applySidebarWidth(292, true);
+    showToast("✓ 已重置侧栏宽度");
+  });
+}
+
+function showShortcutsModal() {
+  const modal = document.getElementById("shortcuts-modal");
+  if (modal) modal.classList.add("show");
+}
+
+function closeShortcutsModal(e) {
+  if (e && e.target !== e.currentTarget && !e.target.classList.contains("stats-card-close")) return;
+  const modal = document.getElementById("shortcuts-modal");
+  if (modal) modal.classList.remove("show");
 }
 
 function toggleSidebar() {
@@ -484,17 +545,6 @@ function applyWideMode(isWide, isAuto = false) {
   const widthPreset = isWide ? "wide" : (uiPrefsCache.contentWidth === "narrow" ? "narrow" : "standard");
   document.documentElement.setAttribute("data-width", widthPreset);
   document.body.classList.toggle("wide-mode", isWide);
-  const btn = document.getElementById("wide-btn");
-  if (btn) {
-    btn.classList.toggle("active", isWide);
-    btn.setAttribute("aria-pressed", String(isWide));
-  }
-}
-
-function toggleWideMode(forceState) {
-  const isWide = typeof forceState === "boolean" ? forceState : !document.body.classList.contains("wide-mode");
-  const nextWidth = isWide ? "wide" : "standard";
-  setContentWidth(nextWidth, true);
 }
 
 function setFontFamily(fontId, save = true) {
@@ -514,11 +564,6 @@ function setContentWidth(widthId, save = true) {
   document.documentElement.setAttribute("data-width", val);
   const isWide = val === "wide";
   document.body.classList.toggle("wide-mode", isWide);
-  const btn = document.getElementById("wide-btn");
-  if (btn) {
-    btn.classList.toggle("active", isWide);
-    btn.setAttribute("aria-pressed", String(isWide));
-  }
   if (save) {
     persistUIPrefs({ contentWidth: val });
   }
@@ -546,8 +591,13 @@ function setTheme(themeId, save = true) {
   if (save) {
     persistUIPrefs({ theme: found.id });
   }
+  const spaceIdx = found.label.indexOf(" ");
+  const emoji = spaceIdx >= 0 ? found.label.slice(0, spaceIdx) : found.label;
+  const text = spaceIdx >= 0 ? found.label.slice(spaceIdx + 1) : "";
   const icon = document.getElementById("theme-icon");
-  if (icon) icon.textContent = found.label;
+  if (icon) icon.textContent = emoji;
+  const label = document.getElementById("theme-label");
+  if (label) label.textContent = text ? " " + text : "";
   updateAppearanceControlsUI();
   if (typeof rerenderMermaidForTheme === "function") {
     rerenderMermaidForTheme();
@@ -555,10 +605,16 @@ function setTheme(themeId, save = true) {
 }
 
 let currentFontSize = 16;
+function updateFontSizeLabel() {
+  const el = document.getElementById("font-size-val");
+  if (el) el.textContent = String(currentFontSize);
+}
+
 function adjustFontSize(delta) {
   if (delta === 0) currentFontSize = 16;
   else currentFontSize = Math.min(26, Math.max(12, currentFontSize + delta));
   document.documentElement.style.setProperty("--content-font-size", `${currentFontSize}px`);
   uiPrefsCache.fontSize = currentFontSize;
   persistUIPrefs({ fontSize: currentFontSize });
+  updateFontSizeLabel();
 }

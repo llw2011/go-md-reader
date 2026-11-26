@@ -122,6 +122,10 @@ function initScrollProgress() {
       updateActiveTOC(currentId);
     }
 
+    if (typeof syncScrollRatio === "function") {
+      syncScrollRatio("preview");
+    }
+
     const backToTopBtn = document.getElementById("back-to-top");
     if (backToTopBtn) {
       backToTopBtn.style.display = scrollTop > 300 ? "flex" : "none";
@@ -271,7 +275,7 @@ function initDragDrop() {
 
     const files = e.dataTransfer.files;
     if (files.length === 0) return;
-    if (!confirmDiscardEditorChanges()) return;
+    if (!(await confirmDiscardEditorChanges())) return;
 
     const file = files[0];
     const filePath = file.path || "";

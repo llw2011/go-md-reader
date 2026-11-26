@@ -86,6 +86,7 @@ let uiPrefsCache = {
   fontFamily: "sans",
   contentWidth: "standard",
   sidebarHidden: false,
+  sidebarWidth: 292,
   recentFiles: [],
   scrollPositions: {}
 };
@@ -103,4 +104,63 @@ function escapeHtml(str) {
 
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function describeLoadError(kind) {
+  switch (kind) {
+    case "notfound":
+      return {
+        icon: "🔍",
+        title: "找不到这个文件",
+        desc: "它可能已被移动、改名或删除。"
+      };
+    case "denied":
+      return {
+        icon: "🔒",
+        title: "没有权限打开这个文件",
+        desc: "文件可能正被其他程序占用，或当前账户没有读取权限。"
+      };
+    case "parse":
+      return {
+        icon: "⚠️",
+        title: "文件内容无法显示",
+        desc: "文件可能已损坏，或格式暂不支持。"
+      };
+    default:
+      return {
+        icon: "⚠️",
+        title: "无法打开这个文件",
+        desc: "请稍后重试，或换一个文件。"
+      };
+  }
+}
+
+function calcSyncedScrollTop(srcTop, srcScrollHeight, srcClientHeight, dstScrollHeight, dstClientHeight) {
+  const srcMax = srcScrollHeight - srcClientHeight;
+  const dstMax = dstScrollHeight - dstClientHeight;
+  if (srcMax <= 0 || dstMax <= 0) return 0;
+  const ratio = Math.max(0, Math.min(1, srcTop / srcMax));
+  return Math.round(ratio * dstMax);
+}
+
+function computeTOCParents(items) {
+  const list = Array.isArray(items) ? items : [];
+  const out = list.map((it, idx) => ({
+    level: it.level,
+    id: it.id,
+    title: it.title,
+    index: idx,
+    parentIndex: -1,
+    hasChildren: false
+  }));
+  for (let i = 0; i < out.length; i++) {
+    for (let j = i - 1; j >= 0; j--) {
+      if (out[j].level < out[i].level) {
+        out[i].parentIndex = j;
+        out[j].hasChildren = true;
+        break;
+      }
+    }
+  }
+  return out;
 }

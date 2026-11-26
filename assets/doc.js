@@ -45,10 +45,17 @@ async function loadFile(preserveScroll = false) {
               ✏️ 新建笔记 (Ctrl+E)
             </button>
           </div>
+          <div class="welcome-recent" id="welcome-recent"></div>
         </div>
       `;
       tocList.innerHTML = `<li style="padding:15px; color:var(--text-muted); font-size:12px; text-align:center;">暂无目录</li>`;
       if (tocCountEl) tocCountEl.textContent = "0";
+      renderWelcomeRecent();
+      return;
+    }
+
+    if (data.loadErrorKind) {
+      renderLoadErrorCard(data);
       return;
     }
 
@@ -233,29 +240,99 @@ function filterSiblingFiles(query) {
   });
 }
 
+let currentTOCNodes = [];
+let collapsedTOCIndices = new Set();
+let tocAllFolded = false;
+
 // Render Table of Contents
 function renderTOC(items) {
   const tocList = document.getElementById("toc-list");
+  const foldAllBtn = document.getElementById("toc-fold-all-btn");
+  collapsedTOCIndices.clear();
+  tocAllFolded = false;
+
   if (!items || items.length === 0) {
+    currentTOCNodes = [];
+    if (foldAllBtn) foldAllBtn.style.display = "none";
     tocList.innerHTML = `<li style="padding:15px; color:var(--text-muted); font-size:12px; text-align:center;">本文暂无标题大纲</li>`;
     return;
   }
 
-  tocList.innerHTML = items.map(item => `
-    <li>
-      <a href="#${escapeHtml(item.id)}" class="toc-item toc-level-${item.level}" data-id="${escapeHtml(item.id)}">
-        ${escapeHtml(item.title)}
-      </a>
+  currentTOCNodes = computeTOCParents(items);
+  const anyCollapsible = currentTOCNodes.some(n => n.hasChildren);
+  if (foldAllBtn) {
+    foldAllBtn.style.display = anyCollapsible ? "" : "none";
+    foldAllBtn.textContent = "折叠";
+  }
+
+  tocList.innerHTML = currentTOCNodes.map(node => `
+    <li class="toc-row" data-toc-idx="${node.index}" data-parent-idx="${node.parentIndex}">
+      <div class="toc-entry toc-level-${node.level}">
+        ${node.hasChildren
+          ? `<button type="button" class="toc-fold-btn" data-fold-idx="${node.index}" aria-expanded="true" aria-label="折叠章节">▾</button>`
+          : `<span class="toc-fold-spacer"></span>`}
+        <a href="#${escapeHtml(node.id)}" class="toc-item" data-id="${escapeHtml(node.id)}">${escapeHtml(node.title)}</a>
+      </div>
     </li>
   `).join("");
 }
 
-function filterTOC(query) {
-  const filter = query.trim().toLowerCase();
-  document.querySelectorAll(".toc-item").forEach(el => {
-    const text = el.textContent.toLowerCase();
-    el.style.display = text.includes(filter) ? "block" : "none";
+function applyTOCVisibility() {
+  const filterInput = document.getElementById("toc-filter-input");
+  const query = filterInput ? filterInput.value.trim().toLowerCase() : "";
+  document.querySelectorAll("#toc-list .toc-row").forEach(row => {
+    const idx = Number(row.getAttribute("data-toc-idx"));
+    const node = currentTOCNodes[idx];
+    const foldBtn = row.querySelector(".toc-fold-btn");
+    if (foldBtn) {
+      const isFolded = collapsedTOCIndices.has(idx);
+      foldBtn.textContent = isFolded ? "▸" : "▾";
+      foldBtn.setAttribute("aria-expanded", String(!isFolded));
+    }
+    if (query) {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(query) ? "" : "none";
+      return;
+    }
+    let p = node ? node.parentIndex : -1;
+    let hidden = false;
+    while (p !== -1) {
+      if (collapsedTOCIndices.has(p)) {
+        hidden = true;
+        break;
+      }
+      p = currentTOCNodes[p] ? currentTOCNodes[p].parentIndex : -1;
+    }
+    row.style.display = hidden ? "none" : "";
   });
+}
+
+function toggleTOCFold(idx) {
+  if (collapsedTOCIndices.has(idx)) {
+    collapsedTOCIndices.delete(idx);
+  } else {
+    collapsedTOCIndices.add(idx);
+  }
+  applyTOCVisibility();
+}
+
+function toggleAllTOCFold() {
+  if (!tocAllFolded) {
+    currentTOCNodes.forEach(n => {
+      if (n.hasChildren) collapsedTOCIndices.add(n.index);
+    });
+    tocAllFolded = true;
+  } else {
+    collapsedTOCIndices.clear();
+    tocAllFolded = false;
+  }
+  const btn = document.getElementById("toc-fold-all-btn");
+  if (btn) btn.textContent = tocAllFolded ? "展开" : "折叠";
+  applyTOCVisibility();
+}
+
+function filterTOC(query) {
+  applyTOCVisibility();
 }
 
 function scrollToHeading(e, id) {
@@ -272,5 +349,113 @@ function updateActiveTOC(activeId) {
   document.querySelectorAll(".toc-item").forEach(item => {
     item.classList.toggle("active", item.getAttribute("data-id") === activeId);
   });
+}
+
+function renderLoadErrorCard(data) {
+  const contentEl = document.getElementById("content");
+  const tocList = document.getElementById("toc-list");
+  const metaEl = document.getElementById("doc-meta");
+  const tocCountEl = document.getElementById("toc-count");
+  const tbDoc = document.getElementById("titlebar-doc-name");
+
+  const info = describeLoadError(data.loadErrorKind);
+  const fname = data.filename || "未知文件";
+  const fpath = data.filepath || "";
+
+  if (metaEl) metaEl.textContent = "无法打开";
+  if (tbDoc) {
+    tbDoc.textContent = fname;
+    tbDoc.title = fpath;
+  }
+  document.title = `${fname} - Go Markdown Reader`;
+  if (tocList) tocList.innerHTML = `<li style="padding:15px; color:var(--text-muted); font-size:12px; text-align:center;">暂无目录</li>`;
+  if (tocCountEl) tocCountEl.textContent = "0";
+
+  const showDetails = (data.loadErrorKind === "other" || data.loadErrorKind === "parse") && data.loadError;
+  const detailsHtml = showDetails
+    ? `<details class="load-error-details"><summary>详细信息</summary><code>${escapeHtml(data.loadError)}</code></details>`
+    : "";
+  const pathHtml = fpath ? `<code class="load-error-path">${escapeHtml(fpath)}</code>` : "";
+
+  contentEl.innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">${info.icon}</div>
+      <div class="empty-title">${escapeHtml(info.title)}</div>
+      <div class="empty-desc">${escapeHtml(info.desc)}</div>
+      ${pathHtml}
+      ${detailsHtml}
+      <div class="empty-actions" id="load-error-actions"></div>
+    </div>
+  `;
+
+  const actionsEl = document.getElementById("load-error-actions");
+  if (actionsEl) {
+    const reopenBtn = document.createElement("button");
+    reopenBtn.type = "button";
+    reopenBtn.className = "btn btn-primary btn-lg";
+    reopenBtn.textContent = "📂 重新选择文件";
+    reopenBtn.addEventListener("click", () => openFileDialog());
+    actionsEl.appendChild(reopenBtn);
+
+    if (data.loadErrorKind === "notfound" && fpath) {
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "btn btn-lg";
+      removeBtn.textContent = "🗑️ 从最近列表移除";
+      removeBtn.addEventListener("click", () => {
+        removeRecentFile(fpath);
+        showToast("✓ 已从最近列表移除");
+        removeBtn.disabled = true;
+      });
+      actionsEl.appendChild(removeBtn);
+    }
+  }
+}
+
+function renderWelcomeRecent() {
+  const container = document.getElementById("welcome-recent");
+  if (!container) return;
+  const recent = Array.isArray(uiPrefsCache.recentFiles) ? uiPrefsCache.recentFiles.slice(0, 5) : [];
+  if (recent.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const itemsHtml = recent.map(item => {
+    const extMatch = (item.name || "").match(/\.[^.]+$/);
+    const ext = extMatch ? extMatch[0].toLowerCase() : "";
+    const p = item.path || "";
+    const sepIdx = Math.max(p.lastIndexOf("\\"), p.lastIndexOf("/"));
+    const parentDir = sepIdx > 0 ? p.slice(0, sepIdx) : p;
+    return `
+      <button type="button" class="welcome-recent-item" data-path="${escapeHtml(p)}" title="${escapeHtml(p)}">
+        <span class="welcome-recent-icon">${getFileIcon(ext)}</span>
+        <span class="welcome-recent-text">
+          <span class="welcome-recent-name">${escapeHtml(item.name)}</span>
+          <span class="welcome-recent-path">${escapeHtml(parentDir)}</span>
+        </span>
+      </button>
+    `;
+  }).join("");
+
+  container.innerHTML = `<div class="welcome-recent-title">最近打开</div>${itemsHtml}`;
+
+  if (!container.dataset.clickBound) {
+    container.dataset.clickBound = "1";
+    container.addEventListener("click", (e) => {
+      const btn = e.target.closest(".welcome-recent-item[data-path]");
+      if (!btn) return;
+      const p = btn.getAttribute("data-path");
+      if (btn.classList.contains("missing")) {
+        removeRecentFile(p);
+        renderWelcomeRecent();
+        showToast("✓ 已从最近列表移除");
+        return;
+      }
+      openRecentPath(p);
+    });
+  }
+
+  markMissingRecent(container);
 }
 

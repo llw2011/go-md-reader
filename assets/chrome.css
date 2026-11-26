@@ -614,3 +614,29 @@
   color: #fff;
 }
 
+.font-size-val {
+  flex: 0 0 38px;
+  align-self: center;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-main);
+}
+
+.dropdown-item.missing {
+  opacity: 0.55;
+}
+
+@media (max-width: 1080px) {
+  .toolbar .btn-label {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  #doc-meta {
+    display: none;
+  }
+}
+

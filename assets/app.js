@@ -8,6 +8,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   initBackToTop();
   initLightboxWheel();
   initDelegatedLists();
+  initSidebarResizer();
+  initEditorScrollSync();
   loadFile();
   renderRecentMenu();
 
@@ -197,9 +199,14 @@ function initDelegatedLists() {
   if (recentMenuEl) {
     recentMenuEl.addEventListener("click", (e) => {
       const item = e.target.closest(".dropdown-item[data-path]");
-      if (item) {
-        openRecentPath(item.getAttribute("data-path"));
+      if (!item) return;
+      const p = item.getAttribute("data-path");
+      if (item.classList.contains("missing")) {
+        removeRecentFile(p);
+        showToast("✓ 已从最近列表移除");
+        return;
       }
+      openRecentPath(p);
     });
   }
 
@@ -253,6 +260,13 @@ function initDelegatedLists() {
   const tocListEl = document.getElementById("toc-list");
   if (tocListEl) {
     tocListEl.addEventListener("click", (e) => {
+      const foldBtn = e.target.closest(".toc-fold-btn[data-fold-idx]");
+      if (foldBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleTOCFold(Number(foldBtn.getAttribute("data-fold-idx")));
+        return;
+      }
       const link = e.target.closest(".toc-item[data-id]");
       if (link) {
         scrollToHeading(e, link.getAttribute("data-id"));
@@ -313,6 +327,8 @@ function initShortcuts() {
       e.preventDefault();
       loadFile(true);
     } else if (e.key === "Escape") {
+      closeConfirmDialog();
+      closeShortcutsModal();
       closeSearch();
       closeStatsModal();
       closeAssocModal();
@@ -320,6 +336,13 @@ function initShortcuts() {
       closeAddonsModal();
       closeAllDropdowns();
       closeLightbox();
+    } else if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key === "?") {
+      const active = document.activeElement;
+      const inInput = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
+      if (!inInput) {
+        e.preventDefault();
+        showShortcutsModal();
+      }
     } else if (e.key === "Enter") {
       const searchBox = document.getElementById("search-container");
       if (searchBox && searchBox.classList.contains("active") && document.activeElement === document.getElementById("search-input")) {

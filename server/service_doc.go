@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"html"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -47,12 +47,19 @@ func (s *Server) GetFile() DocumentResponse {
 		var err error
 		rawContent, err = os.ReadFile(filePath)
 		if err != nil {
+			kind := "other"
+			if errors.Is(err, fs.ErrNotExist) {
+				kind = "notfound"
+			} else if errors.Is(err, fs.ErrPermission) {
+				kind = "denied"
+			}
 			return DocumentResponse{
-				HasFile:  true,
-				DocSeq:   docSeq,
-				Filename: displayName,
-				Filepath: displayPath,
-				HTML:     fmt.Sprintf("<p style='color:red;'>读取文件失败: %s</p>", html.EscapeString(err.Error())),
+				HasFile:       true,
+				DocSeq:        docSeq,
+				Filename:      displayName,
+				Filepath:      displayPath,
+				LoadErrorKind: kind,
+				LoadError:     err.Error(),
 			}
 		}
 	}
@@ -63,11 +70,12 @@ func (s *Server) GetFile() DocumentResponse {
 	result, err := s.parser.Parse(finalMarkdown)
 	if err != nil {
 		return DocumentResponse{
-			HasFile:  true,
-			DocSeq:   docSeq,
-			Filename: displayName,
-			Filepath: displayPath,
-			HTML:     fmt.Sprintf("<p style='color:red;'>解析文档内容失败: %s</p>", html.EscapeString(err.Error())),
+			HasFile:       true,
+			DocSeq:        docSeq,
+			Filename:      displayName,
+			Filepath:      displayPath,
+			LoadErrorKind: "parse",
+			LoadError:     err.Error(),
 		}
 	}
 

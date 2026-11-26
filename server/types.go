@@ -9,20 +9,32 @@ import (
 
 // DocumentResponse is the strongly-typed payload returned for active document reads.
 type DocumentResponse struct {
-	HasFile     bool             `json:"hasFile"`
-	DocSeq      uint64           `json:"docSeq"`
-	Filename    string           `json:"filename,omitempty"`
-	Filepath    string           `json:"filepath,omitempty"`
-	HTML        string           `json:"html,omitempty"`
-	TOC         []parser.TOCItem `json:"toc,omitempty"`
-	WordCount   int              `json:"wordCount,omitempty"`
-	LineCount   int              `json:"lineCount,omitempty"`
-	FileSize    int64            `json:"fileSize,omitempty"`
-	ModTime     string           `json:"modTime,omitempty"`
-	IsMemory    bool             `json:"isMemory,omitempty"`
-	IsConverted bool             `json:"isConverted,omitempty"`
-	FormatNote  string           `json:"formatNote,omitempty"`
-	RawContent  string           `json:"rawContent,omitempty"`
+	HasFile       bool             `json:"hasFile"`
+	DocSeq        uint64           `json:"docSeq"`
+	Filename      string           `json:"filename,omitempty"`
+	Filepath      string           `json:"filepath,omitempty"`
+	HTML          string           `json:"html,omitempty"`
+	TOC           []parser.TOCItem `json:"toc,omitempty"`
+	WordCount     int              `json:"wordCount,omitempty"`
+	LineCount     int              `json:"lineCount,omitempty"`
+	FileSize      int64            `json:"fileSize,omitempty"`
+	ModTime       string           `json:"modTime,omitempty"`
+	IsMemory      bool             `json:"isMemory,omitempty"`
+	IsConverted   bool             `json:"isConverted,omitempty"`
+	FormatNote    string           `json:"formatNote,omitempty"`
+	RawContent    string           `json:"rawContent,omitempty"`
+	LoadErrorKind string           `json:"loadErrorKind,omitempty"`
+	LoadError     string           `json:"loadError,omitempty"`
+}
+
+// PathsExistRequest checks whether a bounded batch of file paths currently exist on disk.
+type PathsExistRequest struct {
+	Paths []string `json:"paths"`
+}
+
+// PathsExistResponse maps each checked path to whether it exists as a non-directory file.
+type PathsExistResponse struct {
+	Exists map[string]bool `json:"exists"`
 }
 
 // SiblingItem describes a supported document file in the active folder.

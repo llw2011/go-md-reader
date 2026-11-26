@@ -159,12 +159,12 @@ func TestTypedTrayUIPrefsAndNotepadRPC(t *testing.T) {
 	}
 
 	// UI prefs patch + persistence check
-	patchBody := json.RawMessage(`{"theme":"nord","fontSize":18,"fontFamily":"serif","contentWidth":"narrow","sidebarHidden":true,"scrollPath":"C:\\docs\\a.md","scrollTop":420}`)
+	patchBody := json.RawMessage(`{"theme":"nord","fontSize":18,"fontFamily":"serif","contentWidth":"narrow","sidebarHidden":true,"sidebarWidth":340,"scrollPath":"C:\\docs\\a.md","scrollTop":420}`)
 	if _, err := srv.HandleRPC(ctx, "prefs.update", patchBody); err != nil {
 		t.Fatalf("prefs.update failed: %v", err)
 	}
 	reloaded := newUIPrefsStore(prefsFile).get()
-	if reloaded.Theme != "nord" || reloaded.FontSize != 18 || reloaded.FontFamily != "serif" || reloaded.ContentWidth != "narrow" || !reloaded.SidebarHidden || reloaded.ScrollPositions[`C:\docs\a.md`] != 420 {
+	if reloaded.Theme != "nord" || reloaded.FontSize != 18 || reloaded.FontFamily != "serif" || reloaded.ContentWidth != "narrow" || !reloaded.SidebarHidden || reloaded.SidebarWidth != 340 || reloaded.ScrollPositions[`C:\docs\a.md`] != 420 {
 		t.Fatalf("unexpected reloaded UIPrefs: %+v", reloaded)
 	}
 
@@ -452,5 +452,42 @@ func TestAddonsRPCAndHTTPServing(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for uninstalled addon file, got %d", rec.Code)
+	}
+}
+
+func TestGetFileReportsMissingFileKindAndDocExists(t *testing.T) {
+	dir := t.TempDir()
+	existing := filepath.Join(dir, "keep.md")
+	tempDoc := filepath.Join(dir, "gone.md")
+	missing := filepath.Join(dir, "missing.md")
+
+	if err := os.WriteFile(existing, []byte("# Keep"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tempDoc, []byte("# Temp"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := newTestServer(t, tempDoc)
+	if err := os.Remove(tempDoc); err != nil {
+		t.Fatal(err)
+	}
+
+	got := srv.GetFile()
+	if !got.HasFile || got.LoadErrorKind != "notfound" || got.HTML != "" {
+		t.Fatalf("expected missing file LoadErrorKind=notfound and empty HTML, got %+v", got)
+	}
+
+	raw, _ := json.Marshal(PathsExistRequest{Paths: []string{existing, missing}})
+	res, err := srv.HandleRPC(context.Background(), "doc.exists", raw)
+	if err != nil {
+		t.Fatalf("doc.exists failed: %v", err)
+	}
+	existsResp, ok := res.(PathsExistResponse)
+	if !ok {
+		t.Fatalf("unexpected response type %T", res)
+	}
+	if !existsResp.Exists[existing] || existsResp.Exists[missing] {
+		t.Fatalf("unexpected doc.exists map: %+v", existsResp.Exists)
 	}
 }

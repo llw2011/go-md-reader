@@ -20,6 +20,7 @@ type UIPrefs struct {
 	FontFamily      string            `json:"fontFamily"`
 	ContentWidth    string            `json:"contentWidth"`
 	SidebarHidden   bool              `json:"sidebarHidden"`
+	SidebarWidth    int               `json:"sidebarWidth"`
 	RecentFiles     []RecentFileEntry `json:"recentFiles"`
 	ScrollPositions map[string]int    `json:"scrollPositions"`
 }
@@ -30,6 +31,7 @@ type prefsPatch struct {
 	FontFamily      *string            `json:"fontFamily,omitempty"`
 	ContentWidth    *string            `json:"contentWidth,omitempty"`
 	SidebarHidden   *bool              `json:"sidebarHidden,omitempty"`
+	SidebarWidth    *int               `json:"sidebarWidth,omitempty"`
 	RecentFiles     *[]RecentFileEntry `json:"recentFiles,omitempty"`
 	ScrollPath      *string            `json:"scrollPath,omitempty"`
 	ScrollTop       *int               `json:"scrollTop,omitempty"`
@@ -65,6 +67,7 @@ func newUIPrefsStore(filePath string) *uiPrefsStore {
 			FontSize:        16,
 			FontFamily:      "sans",
 			ContentWidth:    "standard",
+			SidebarWidth:    292,
 			ScrollPositions: map[string]int{},
 		},
 	}
@@ -106,6 +109,9 @@ func (st *uiPrefsStore) loadLocked() {
 	st.prefs.FontFamily = normalizeFontFamily(loaded.FontFamily)
 	st.prefs.ContentWidth = normalizeContentWidth(loaded.ContentWidth)
 	st.prefs.SidebarHidden = loaded.SidebarHidden
+	if loaded.SidebarWidth >= 200 && loaded.SidebarWidth <= 520 {
+		st.prefs.SidebarWidth = loaded.SidebarWidth
+	}
 	if len(loaded.RecentFiles) > 10 {
 		loaded.RecentFiles = loaded.RecentFiles[:10]
 	}
@@ -147,6 +153,9 @@ func (st *uiPrefsStore) applyPatch(p prefsPatch) UIPrefs {
 	}
 	if p.SidebarHidden != nil {
 		st.prefs.SidebarHidden = *p.SidebarHidden
+	}
+	if p.SidebarWidth != nil && *p.SidebarWidth >= 200 && *p.SidebarWidth <= 520 {
+		st.prefs.SidebarWidth = *p.SidebarWidth
 	}
 	if p.RecentFiles != nil {
 		list := *p.RecentFiles

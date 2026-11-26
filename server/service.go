@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"go-md-reader/assoc"
 	"go-md-reader/updater"
@@ -38,6 +39,22 @@ func (s *Server) HandleRPC(ctx context.Context, method string, rawParams json.Ra
 		return callTyped(rawParams, s.OpenDocument)
 	case "doc.save":
 		return callTyped(rawParams, s.SaveDocument)
+	case "doc.exists":
+		return callTyped(rawParams, func(req PathsExistRequest) (PathsExistResponse, error) {
+			n := len(req.Paths)
+			if n > 20 {
+				n = 20
+			}
+			exists := make(map[string]bool, n)
+			for _, p := range req.Paths[:n] {
+				if p == "" {
+					continue
+				}
+				info, err := os.Stat(p)
+				exists[p] = err == nil && !info.IsDir()
+			}
+			return PathsExistResponse{Exists: exists}, nil
+		})
 	case "prefs.get":
 		return callNoArg(func() (UIPrefs, error) { return s.uiPrefs.get(), nil })
 	case "prefs.update":

@@ -640,3 +640,163 @@
   }
 }
 
+/* Multi-Tab Document Bar */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 6px;
+  border-top: 1px solid var(--border-color);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 210px;
+  min-width: 96px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.tab-item:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-main);
+}
+
+.tab-item.active {
+  background: linear-gradient(180deg, var(--btn-bg-top) 0%, var(--btn-bg-bottom) 100%);
+  color: var(--text-main);
+  font-weight: 600;
+  border-color: var(--border-color);
+  box-shadow: var(--card-shadow-sm);
+}
+
+.tab-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+}
+
+.tab-dirty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.tab-close-btn {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.tab-close-btn:hover {
+  background: var(--accent-tint);
+  color: var(--accent);
+  opacity: 1;
+}
+
+.tab-add-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-add-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-color);
+  color: var(--text-main);
+}
+
+/* Zen Focus Reading Mode (F11) */
+body.zen-mode .sidebar,
+body.zen-mode .sidebar-resizer,
+body.zen-mode .editor-pane {
+  display: none !important;
+}
+
+body.zen-mode .app-chrome {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  transform: translateY(calc(-100% + 6px));
+  opacity: 0;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+body.zen-mode .app-chrome:hover,
+body.zen-mode .app-chrome:focus-within {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.zen-exit-btn {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 150;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.45;
+  box-shadow: var(--card-shadow-sm);
+  transition: opacity 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.zen-exit-btn:hover {
+  opacity: 1;
+  color: var(--text-main);
+  border-color: var(--accent);
+}
+
+body.zen-mode .zen-exit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+

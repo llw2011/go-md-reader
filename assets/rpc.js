@@ -164,3 +164,13 @@ function computeTOCParents(items) {
   }
   return out;
 }
+
+function filterCommandItems(items, query) {
+  const list = Array.isArray(items) ? items : [];
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return list;
+  return list.filter(it => {
+    const hay = `${it.title || ""} ${it.keywords || ""} ${it.hint || ""}`.toLowerCase();
+    return hay.includes(q);
+  });
+}

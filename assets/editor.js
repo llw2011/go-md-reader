@@ -1,37 +1,83 @@
-let scrollSyncLock = "";
-let scrollSyncTimer = null;
+let scrollSyncEnabled = true;
+let activeScrollPane = "";
+let activeScrollTimer = null;
+let scrollSyncRaf = 0;
 
-function syncScrollRatio(sourceId) {
-  if (!isEditorOpen) return;
-  if (scrollSyncLock && scrollSyncLock !== sourceId) return;
-  const editorEl = document.getElementById("editor-textarea");
-  const previewEl = document.getElementById("content-area");
-  if (!editorEl || !previewEl) return;
+function setActiveScrollDriver(pane) {
+  activeScrollPane = pane;
+  clearTimeout(activeScrollTimer);
+  activeScrollTimer = setTimeout(() => {
+    activeScrollPane = "";
+  }, 450);
+}
 
-  scrollSyncLock = sourceId;
-  clearTimeout(scrollSyncTimer);
-  scrollSyncTimer = setTimeout(() => { scrollSyncLock = ""; }, 80);
-
-  if (sourceId === "editor") {
-    previewEl.scrollTop = calcSyncedScrollTop(
-      editorEl.scrollTop, editorEl.scrollHeight, editorEl.clientHeight,
-      previewEl.scrollHeight, previewEl.clientHeight
-    );
-  } else {
-    editorEl.scrollTop = calcSyncedScrollTop(
-      previewEl.scrollTop, previewEl.scrollHeight, previewEl.clientHeight,
-      editorEl.scrollHeight, editorEl.clientHeight
-    );
+function toggleScrollSync() {
+  scrollSyncEnabled = !scrollSyncEnabled;
+  const btn = document.getElementById("sync-scroll-btn");
+  if (btn) {
+    btn.classList.toggle("active", scrollSyncEnabled);
+    btn.setAttribute("aria-pressed", String(scrollSyncEnabled));
   }
+  if (scrollSyncEnabled) {
+    syncScrollRatio("editor", true);
+  }
+}
+
+function syncScrollRatio(sourceId, force = false) {
+  if (!isEditorOpen || !scrollSyncEnabled) return;
+  if (!force && activeScrollPane && activeScrollPane !== sourceId) return;
+
+  if (scrollSyncRaf) {
+    cancelAnimationFrame(scrollSyncRaf);
+  }
+  scrollSyncRaf = requestAnimationFrame(() => {
+    scrollSyncRaf = 0;
+    const editorEl = document.getElementById("editor-textarea");
+    const previewEl = document.getElementById("content-area");
+    if (!editorEl || !previewEl) return;
+
+    if (sourceId === "editor") {
+      const nextTop = calcSyncedScrollTop(
+        editorEl.scrollTop, editorEl.scrollHeight, editorEl.clientHeight,
+        previewEl.scrollHeight, previewEl.clientHeight
+      );
+      if (Math.abs(previewEl.scrollTop - nextTop) >= 1) {
+        previewEl.scrollTop = nextTop;
+      }
+    } else {
+      const nextTop = calcSyncedScrollTop(
+        previewEl.scrollTop, previewEl.scrollHeight, previewEl.clientHeight,
+        editorEl.scrollHeight, editorEl.clientHeight
+      );
+      if (Math.abs(editorEl.scrollTop - nextTop) >= 1) {
+        editorEl.scrollTop = nextTop;
+      }
+    }
+  });
 }
 
 function initEditorScrollSync() {
   const editorEl = document.getElementById("editor-textarea");
-  if (!editorEl || editorEl.dataset.syncBound) return;
-  editorEl.dataset.syncBound = "1";
-  editorEl.addEventListener("scroll", () => {
-    syncScrollRatio("editor");
-  });
+  const previewEl = document.getElementById("content-area");
+  if (editorEl && !editorEl.dataset.syncBound) {
+    editorEl.dataset.syncBound = "1";
+    const markEditor = () => setActiveScrollDriver("editor");
+    editorEl.addEventListener("wheel", markEditor, { passive: true });
+    editorEl.addEventListener("touchstart", markEditor, { passive: true });
+    editorEl.addEventListener("mousedown", markEditor);
+    editorEl.addEventListener("keydown", markEditor);
+    editorEl.addEventListener("scroll", () => {
+      syncScrollRatio("editor");
+    }, { passive: true });
+  }
+  if (previewEl && !previewEl.dataset.syncDriverBound) {
+    previewEl.dataset.syncDriverBound = "1";
+    const markPreview = () => setActiveScrollDriver("preview");
+    previewEl.addEventListener("wheel", markPreview, { passive: true });
+    previewEl.addEventListener("touchstart", markPreview, { passive: true });
+    previewEl.addEventListener("mousedown", markPreview);
+    previewEl.addEventListener("keydown", markPreview);
+  }
 }
 
 function toggleEditor() {
@@ -49,13 +95,31 @@ function toggleEditor() {
       textarea.value = currentDocData.rawContent;
     }
     textarea.focus();
-    syncScrollRatio("editor");
+    syncScrollRatio("editor", true);
+  }
+}
+
+function markActiveTabDirty(dirty, content) {
+  if (typeof openTabs === "undefined" || !activeTabId) return;
+  const tab = openTabs.find(t => t.id === activeTabId);
+  if (!tab) return;
+  const changed = tab.dirty !== !!dirty;
+  tab.dirty = !!dirty;
+  if (typeof content === "string") {
+    tab.draftContent = dirty ? content : "";
+    if (!dirty) tab.rawContent = content;
+  }
+  if (changed && typeof renderTabBar === "function") {
+    renderTabBar();
   }
 }
 
 function handleEditorInput() {
   isEditorDirty = true;
   clearTimeout(editorDebounceTimer);
+
+  const editorEl = document.getElementById("editor-textarea");
+  markActiveTabDirty(true, editorEl ? editorEl.value : undefined);
 
   const expectedDocSeq = currentDocData ? currentDocData.docSeq : undefined;
   const expectedPath = currentDocData ? currentDocData.filepath : "";
@@ -77,7 +141,7 @@ function handleEditorInput() {
       currentDocData.html = data.html;
       currentDocData.wordCount = data.wordCount;
       renderDocumentHTML(data.html, data.toc);
-      syncScrollRatio("editor");
+      syncScrollRatio("editor", true);
 
       const words = data.wordCount || 0;
       const estMinutes = Math.max(1, Math.round(words / 350));
@@ -145,6 +209,7 @@ async function autoFormatDocument() {
     currentDocData.rawContent = data.content;
     currentDocData.html = data.html;
     currentDocData.wordCount = data.wordCount;
+    markActiveTabDirty(true, data.content);
     renderDocumentHTML(data.html, data.toc);
 
     const words = data.wordCount || 0;
@@ -174,6 +239,21 @@ async function saveCurrentContent() {
     const data = await rpcCall("doc.save", { mode: "save", content });
     if (data.saved) {
       isEditorDirty = false;
+      if (typeof openTabs !== "undefined" && activeTabId) {
+        const tab = openTabs.find(t => t.id === activeTabId);
+        if (tab) {
+          tab.dirty = false;
+          tab.draftContent = "";
+          tab.rawContent = content;
+          if (data.path) {
+            tab.isMemory = false;
+            tab.path = data.path;
+            tab.id = "path:" + data.path;
+            activeTabId = tab.id;
+          }
+          if (typeof renderTabBar === "function") renderTabBar();
+        }
+      }
       showToast(`✓ 已保存: ${data.path}`);
       loadFile(true);
       return true;
@@ -505,7 +585,7 @@ async function confirmDiscardEditorChanges() {
 
 async function openRecentPath(path) {
   closeAllDropdowns();
-  if (!(await confirmDiscardEditorChanges())) return;
+  if (typeof stashActiveTabState === "function") stashActiveTabState();
   try {
     await rpcCall("doc.open", { mode: "path", path });
     loadFile(false);
@@ -515,7 +595,7 @@ async function openRecentPath(path) {
 }
 
 async function openFileDialog() {
-  if (!(await confirmDiscardEditorChanges())) return;
+  if (typeof stashActiveTabState === "function") stashActiveTabState();
   try {
     const data = await rpcCall("doc.open", { mode: "dialog" });
     if (data.opened) {

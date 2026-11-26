@@ -15,7 +15,7 @@ import (
 )
 
 // CurrentVersion is the running application version (overridden at release build via -ldflags).
-var CurrentVersion = "v2.4.4"
+var CurrentVersion = "v2.4.5"
 
 // DefaultRepo is the public GitHub repository queried for OTA releases.
 const DefaultRepo = "llw2011/go-md-reader"

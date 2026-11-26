@@ -1,3 +1,158 @@
+let openTabs = [];
+let activeTabId = "";
+let tabSeq = 0;
+
+function stashActiveTabState() {
+  const t = openTabs.find(x => x.id === activeTabId);
+  if (!t) return;
+  t.dirty = !!isEditorDirty;
+  const ed = document.getElementById("editor-textarea");
+  if (ed && isEditorDirty) t.draftContent = ed.value;
+  const sc = document.getElementById("content-area");
+  if (sc) t.scrollTop = sc.scrollTop;
+}
+
+function syncTabFromLoadedDoc(data) {
+  if (!data || !data.hasFile) return;
+  const name = data.filename || "未命名草稿.md";
+  let tab = null;
+  if (!data.isMemory && data.filepath) {
+    tab = openTabs.find(t => !t.isMemory && t.path === data.filepath);
+    if (!tab) {
+      tab = {
+        id: "path:" + data.filepath,
+        path: data.filepath,
+        name,
+        isMemory: false,
+        dirty: false,
+        draftContent: "",
+        rawContent: data.rawContent || "",
+        scrollTop: 0
+      };
+      openTabs.push(tab);
+    } else {
+      tab.name = name;
+      if (!tab.dirty) tab.rawContent = data.rawContent || "";
+    }
+  } else {
+    tab = openTabs.find(t => t.id === activeTabId && t.isMemory && t.name === name);
+    if (!tab) {
+      tab = {
+        id: "mem:" + (++tabSeq),
+        path: "",
+        name,
+        isMemory: true,
+        dirty: false,
+        draftContent: "",
+        rawContent: data.rawContent || "",
+        scrollTop: 0
+      };
+      openTabs.push(tab);
+    } else {
+      tab.name = name;
+      if (!tab.dirty) tab.rawContent = data.rawContent || "";
+    }
+  }
+  activeTabId = tab.id;
+  renderTabBar();
+}
+
+function renderTabBar() {
+  const bar = document.getElementById("tab-bar");
+  if (!bar) return;
+  if (openTabs.length === 0) {
+    bar.style.display = "none";
+    bar.innerHTML = "";
+    return;
+  }
+  bar.style.display = "flex";
+  bar.innerHTML = openTabs.map(t => {
+    const extMatch = (t.name || "").match(/\.[^.]+$/);
+    const ext = extMatch ? extMatch[0].toLowerCase() : "";
+    const activeCls = t.id === activeTabId ? " active" : "";
+    const dirtyHtml = t.dirty ? `<span class="tab-dirty-dot" title="有未保存修改"></span>` : "";
+    return `
+      <div class="tab-item${activeCls}" role="tab" aria-selected="${t.id === activeTabId}" data-tab-id="${escapeHtml(t.id)}" title="${escapeHtml(t.path || t.name)}">
+        <span class="tab-item-icon">${getFileIcon(ext)}</span>
+        <span class="tab-item-title">${escapeHtml(t.name)}</span>
+        ${dirtyHtml}
+        <button type="button" class="tab-close-btn" data-close-tab="${escapeHtml(t.id)}" aria-label="关闭标签" title="关闭标签 (Ctrl+W)">&times;</button>
+      </div>
+    `;
+  }).join("") + `<button type="button" class="tab-add-btn" onclick="openFileDialog()" aria-label="打开新文档" title="打开文档 (Ctrl+O)">+</button>`;
+}
+
+async function switchTab(tabId) {
+  if (!tabId || tabId === activeTabId) return;
+  stashActiveTabState();
+  const target = openTabs.find(t => t.id === tabId);
+  if (!target) return;
+  activeTabId = target.id;
+  isEditorDirty = !!target.dirty;
+  if (!target.isMemory && target.path) {
+    await rpcCall("doc.open", { mode: "path", path: target.path });
+    await loadFile(false);
+  } else {
+    await rpcCall("doc.open", {
+      mode: "content",
+      name: target.name,
+      content: (target.dirty && target.draftContent) ? target.draftContent : (target.rawContent || "# ")
+    });
+    await loadFile(false);
+  }
+}
+
+async function closeTab(tabId) {
+  const idx = openTabs.findIndex(t => t.id === tabId);
+  if (idx === -1) return;
+  const tab = openTabs[idx];
+  if (tab.id === activeTabId) {
+    stashActiveTabState();
+  }
+  if (tab.dirty) {
+    if (tab.id !== activeTabId) {
+      await switchTab(tab.id);
+    }
+    const choice = await showConfirmDialog({
+      title: "有未保存的修改",
+      message: "关闭「" + tab.name + "」前要保存当前修改吗？",
+      buttons: [
+        { id: "save", label: "💾 保存并关闭", variant: "primary" },
+        { id: "discard", label: "不保存" },
+        { id: "cancel", label: "取消" }
+      ]
+    });
+    if (choice === "save") {
+      if (!(await saveCurrentContent())) return;
+    } else if (choice !== "discard") {
+      return;
+    }
+  }
+  openTabs.splice(idx, 1);
+  if (openTabs.length === 0) {
+    activeTabId = "";
+    isEditorDirty = false;
+    try { await rpcCall("doc.close"); } catch (e) {}
+    renderTabBar();
+    await loadFile(false);
+    return;
+  }
+  if (tab.id === activeTabId) {
+    const next = openTabs[Math.min(idx, openTabs.length - 1)];
+    activeTabId = "";
+    await switchTab(next.id);
+  } else {
+    renderTabBar();
+  }
+}
+
+function cycleTabs(step) {
+  if (openTabs.length <= 1) return;
+  const idx = openTabs.findIndex(t => t.id === activeTabId);
+  const nextIdx = ((idx >= 0 ? idx : 0) + step + openTabs.length) % openTabs.length;
+  switchTab(openTabs[nextIdx].id);
+}
+
 // Load current document from backend with race-condition & scroll-position protection
 async function loadFile(preserveScroll = false) {
   const contentEl = document.getElementById("content");
@@ -59,6 +214,8 @@ async function loadFile(preserveScroll = false) {
       return;
     }
 
+    syncTabFromLoadedDoc(data);
+
     let displayTitle = data.filename;
     if (data.isConverted && data.formatNote) {
       displayTitle = `[${data.formatNote}] ${data.filename}`;
@@ -95,7 +252,17 @@ async function loadFile(preserveScroll = false) {
       }
     }
 
-    renderDocumentHTML(data.html, data.toc);
+    const activeTab = openTabs.find(t => t.id === activeTabId);
+    if (activeTab && activeTab.dirty) {
+      isEditorDirty = true;
+      if (editorEl) editorEl.value = activeTab.draftContent || "";
+      renderDocumentHTML(data.html, data.toc);
+      if (typeof handleEditorInput === "function") {
+        handleEditorInput();
+      }
+    } else {
+      renderDocumentHTML(data.html, data.toc);
+    }
 
     // Add to recent files if opened from disk path
     if (data.filepath && !data.isMemory) {
@@ -116,8 +283,11 @@ async function loadFile(preserveScroll = false) {
     }
 
     if (scrollContainer) {
+      const activeTab = openTabs.find(t => t.id === activeTabId);
       if (preserveScroll) {
         scrollContainer.scrollTop = lastScrollPos;
+      } else if (activeTab && typeof activeTab.scrollTop === "number" && activeTab.scrollTop > 0) {
+        scrollContainer.scrollTop = activeTab.scrollTop;
       } else if (data.filepath && !data.isMemory) {
         const savedScroll = (uiPrefsCache.scrollPositions && uiPrefsCache.scrollPositions[data.filepath]) || 0;
         scrollContainer.scrollTop = savedScroll;

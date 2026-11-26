@@ -273,6 +273,22 @@ function initDelegatedLists() {
       }
     });
   }
+
+  const tabBarEl = document.getElementById("tab-bar");
+  if (tabBarEl) {
+    tabBarEl.addEventListener("click", (e) => {
+      const closeBtn = e.target.closest(".tab-close-btn[data-close-tab]");
+      if (closeBtn) {
+        e.stopPropagation();
+        closeTab(closeBtn.getAttribute("data-close-tab"));
+        return;
+      }
+      const tabItem = e.target.closest(".tab-item[data-tab-id]");
+      if (tabItem) {
+        switchTab(tabItem.getAttribute("data-tab-id"));
+      }
+    });
+  }
 }
 
 // Backend push event receiver (delivered via WebView2 Eval instead of HTTP SSE)
@@ -311,6 +327,22 @@ function initShortcuts() {
     } else if (e.ctrlKey && e.key.toLowerCase() === "f") {
       e.preventDefault();
       toggleSearch();
+    } else if (e.ctrlKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      showCommandPalette();
+    } else if (e.ctrlKey && e.key.toLowerCase() === "w") {
+      e.preventDefault();
+      if (typeof closeTab === "function" && typeof activeTabId !== "undefined" && activeTabId) {
+        closeTab(activeTabId);
+      }
+    } else if (e.ctrlKey && e.key === "Tab") {
+      e.preventDefault();
+      if (typeof cycleTabs === "function") {
+        cycleTabs(e.shiftKey ? -1 : 1);
+      }
+    } else if (e.key === "F11") {
+      e.preventDefault();
+      toggleZenMode();
     } else if (e.ctrlKey && e.key.toLowerCase() === "p") {
       e.preventDefault();
       triggerPrint();
@@ -327,7 +359,9 @@ function initShortcuts() {
       e.preventDefault();
       loadFile(true);
     } else if (e.key === "Escape") {
+      const hasOpenOverlay = !!document.querySelector(".modal-backdrop.show, .search-container.active, .dropdown-menu.show");
       closeConfirmDialog();
+      closeCommandPalette();
       closeShortcutsModal();
       closeSearch();
       closeStatsModal();
@@ -336,6 +370,9 @@ function initShortcuts() {
       closeAddonsModal();
       closeAllDropdowns();
       closeLightbox();
+      if (!hasOpenOverlay && document.body.classList.contains("zen-mode")) {
+        toggleZenMode(false);
+      }
     } else if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key === "?") {
       const active = document.activeElement;
       const inInput = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);

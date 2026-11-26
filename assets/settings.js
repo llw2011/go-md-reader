@@ -528,6 +528,149 @@ function closeShortcutsModal(e) {
   if (modal) modal.classList.remove("show");
 }
 
+function toggleZenMode(force) {
+  const next = typeof force === "boolean" ? force : !document.body.classList.contains("zen-mode");
+  document.body.classList.toggle("zen-mode", next);
+  if (next) {
+    closeAllDropdowns();
+    showToast("🧘 已进入专注阅读（鼠标移至顶部唤出工具栏，按 F11 退出）");
+  }
+}
+
+let cmdPaletteFiltered = [];
+let cmdPaletteActiveIdx = 0;
+
+function buildCommandPaletteItems() {
+  const items = [
+    { id: "open", title: "📂 打开文档", keywords: "open file dakai", hint: "Ctrl+O", run: () => openFileDialog() },
+    { id: "sidebar", title: "📑 展开 / 收起侧栏", keywords: "sidebar outline celiang dagang", hint: "Ctrl+B", run: () => toggleSidebar() },
+    { id: "editor", title: "✏️ 编辑 / 源码分屏", keywords: "edit markdown bianji", hint: "Ctrl+E", run: () => toggleEditor() },
+    { id: "format", title: "✨ 一键自动排版", keywords: "format paiban", hint: "Ctrl+Shift+F", run: () => autoFormatDocument() },
+    { id: "search", title: "🔍 页内查找文字", keywords: "find search sousuo", hint: "Ctrl+F", run: () => toggleSearch() },
+    { id: "zen", title: "🧘 专注阅读模式", keywords: "zen focus zhuanzhu", hint: "F11", run: () => toggleZenMode() },
+    { id: "save", title: "💾 保存当前修改", keywords: "save baocun", hint: "Ctrl+S", run: () => saveCurrentContent() },
+    { id: "saveAs", title: "💾 另存为 Markdown", keywords: "save as lingcunwei", hint: ".md", run: () => saveAsMarkdown() },
+    { id: "exportHtml", title: "🌐 导出独立网页 (.html)", keywords: "export html daochu", hint: ".html", run: () => exportStandaloneHTML() },
+    { id: "print", title: "🖨️ 打印 / 存为 PDF", keywords: "print pdf dayin", hint: "Ctrl+P", run: () => triggerPrint() },
+    { id: "reload", title: "🔄 刷新当前文档", keywords: "reload shuaxin", hint: "F5", run: () => loadFile(true) },
+    { id: "themeNext", title: "🎨 切换下一套皮肤", keywords: "theme skin pifu zhuti", hint: "外观", run: () => cycleTheme() },
+    { id: "widthWide", title: "↔️ 宽屏 / 标准宽度切换", keywords: "wide kuangping", hint: "外观", run: () => setContentWidth(uiPrefsCache.contentWidth === "wide" ? "standard" : "wide", true) },
+    { id: "fontSerif", title: "🔤 切换正文字体（黑体 / 衬线）", keywords: "font serif ziti", hint: "外观", run: () => setFontFamily(uiPrefsCache.fontFamily === "serif" ? "sans" : "serif", true) },
+    { id: "addons", title: "🧩 扩展功能（KaTeX / Mermaid）", keywords: "addon katex mermaid kuozhan", hint: "设置", run: () => showAddonsModal() },
+    { id: "assoc", title: "⚙️ 默认打开方式与记事本", keywords: "assoc notepad guanlian", hint: "设置", run: () => showAssocModal() },
+    { id: "ota", title: "☁️ 检查更新", keywords: "update ota gengxin", hint: "设置", run: () => showOTAModal() },
+    { id: "shortcuts", title: "⌨️ 快捷键说明", keywords: "shortcuts help kuaijiejian", hint: "?", run: () => showShortcutsModal() }
+  ];
+
+  THEMES.forEach(t => {
+    items.push({
+      id: "theme-" + t.id,
+      title: `切换皮肤：${t.label}`,
+      keywords: `theme pifu ${t.id} ${t.label}`,
+      hint: "皮肤",
+      run: () => setTheme(t.id, true)
+    });
+  });
+
+  const recent = Array.isArray(uiPrefsCache.recentFiles) ? uiPrefsCache.recentFiles : [];
+  recent.forEach(r => {
+    items.push({
+      id: "recent-" + r.path,
+      title: `📄 打开最近：${r.name}`,
+      keywords: `recent ${r.name} ${r.path}`,
+      hint: "最近文档",
+      run: () => openRecentPath(r.path)
+    });
+  });
+
+  return items;
+}
+
+function showCommandPalette() {
+  closeAllDropdowns();
+  const modal = document.getElementById("cmd-modal");
+  const input = document.getElementById("cmd-input");
+  if (!modal || !input) return;
+
+  if (!input.dataset.cmdKeyBound) {
+    input.dataset.cmdKeyBound = "1";
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (cmdPaletteFiltered.length > 0) {
+          cmdPaletteActiveIdx = (cmdPaletteActiveIdx + 1) % cmdPaletteFiltered.length;
+          renderCommandPaletteList();
+        }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (cmdPaletteFiltered.length > 0) {
+          cmdPaletteActiveIdx = (cmdPaletteActiveIdx - 1 + cmdPaletteFiltered.length) % cmdPaletteFiltered.length;
+          renderCommandPaletteList();
+        }
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const item = cmdPaletteFiltered[cmdPaletteActiveIdx];
+        if (item) {
+          closeCommandPalette();
+          item.run();
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        closeCommandPalette();
+      }
+    });
+  }
+
+  input.value = "";
+  handleCommandInput("");
+  modal.classList.add("show");
+  input.focus();
+}
+
+function closeCommandPalette(e) {
+  if (e && e.target !== e.currentTarget) return;
+  const modal = document.getElementById("cmd-modal");
+  if (modal) modal.classList.remove("show");
+}
+
+function handleCommandInput(query) {
+  cmdPaletteFiltered = filterCommandItems(buildCommandPaletteItems(), query).slice(0, 12);
+  cmdPaletteActiveIdx = 0;
+  renderCommandPaletteList();
+}
+
+function renderCommandPaletteList() {
+  const listEl = document.getElementById("cmd-list");
+  if (!listEl) return;
+  if (cmdPaletteFiltered.length === 0) {
+    listEl.innerHTML = `<li style="padding:14px; text-align:center; font-size:12px; color:var(--text-muted);">未找到匹配的命令或文档</li>`;
+    return;
+  }
+  listEl.innerHTML = "";
+  cmdPaletteFiltered.forEach((it, idx) => {
+    const li = document.createElement("li");
+    li.className = "cmd-item" + (idx === cmdPaletteActiveIdx ? " active" : "");
+    li.setAttribute("role", "option");
+    li.setAttribute("aria-selected", String(idx === cmdPaletteActiveIdx));
+    const titleSpan = document.createElement("span");
+    titleSpan.textContent = it.title;
+    const hintSpan = document.createElement("span");
+    hintSpan.className = "cmd-item-hint";
+    hintSpan.textContent = it.hint || "";
+    li.appendChild(titleSpan);
+    li.appendChild(hintSpan);
+    li.addEventListener("click", () => {
+      closeCommandPalette();
+      it.run();
+    });
+    listEl.appendChild(li);
+  });
+  const activeEl = listEl.querySelector(".cmd-item.active");
+  if (activeEl && typeof activeEl.scrollIntoView === "function") {
+    activeEl.scrollIntoView({ block: "nearest" });
+  }
+}
+
 function toggleSidebar() {
   const sidebar = document.getElementById("sidebar");
   const sidebarBtn = document.getElementById("sidebar-btn");

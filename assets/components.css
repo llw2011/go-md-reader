@@ -259,21 +259,63 @@
 }
 
 .editor-header {
-  padding: 8px 12px;
+  min-height: 44px;
+  padding: 6px 12px;
   background: var(--bg-toolbar);
   border-bottom: 1px solid var(--border-color);
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 12px;
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.editor-header::-webkit-scrollbar {
+  display: none;
 }
 
 .editor-tools {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
   gap: 5px;
+}
+
+.preview-header {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 16px;
+  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--border-color);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.editor-pane.active ~ .content-area .preview-header {
+  display: flex;
+}
+
+.preview-header-title {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.preview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .editor-textarea {

@@ -37,7 +37,8 @@ function loadRpcSandbox(overrides = {}) {
     arrayBufferToBase64: vm.runInContext(`arrayBufferToBase64`, ctx),
     describeLoadError: vm.runInContext(`describeLoadError`, ctx),
     calcSyncedScrollTop: vm.runInContext(`calcSyncedScrollTop`, ctx),
-    computeTOCParents: vm.runInContext(`computeTOCParents`, ctx)
+    computeTOCParents: vm.runInContext(`computeTOCParents`, ctx),
+    filterCommandItems: vm.runInContext(`filterCommandItems`, ctx)
   };
 }
 
@@ -149,4 +150,17 @@ test("computeTOCParents builds heading parent links and child flags cleanly", ()
   assert.equal(nodes[2].hasChildren, false);
   assert.equal(nodes[3].parentIndex, -1);
   assert.equal(nodes[3].hasChildren, false);
+});
+
+test("filterCommandItems matches titles and keywords case-insensitively", () => {
+  const env = loadRpcSandbox();
+  const list = [
+    { title: "📂 打开文档", keywords: "open file", hint: "Ctrl+O" },
+    { title: "🧘 专注阅读模式", keywords: "zen focus", hint: "F11" },
+    { title: "切换皮肤：深色", keywords: "dark theme", hint: "皮肤" }
+  ];
+  assert.equal(env.filterCommandItems(list, "").length, 3);
+  assert.deepEqual(env.filterCommandItems(list, "ZEN").map(x => x.hint), ["F11"]);
+  assert.deepEqual(env.filterCommandItems(list, "皮肤").map(x => x.hint), ["皮肤"]);
+  assert.equal(env.filterCommandItems(list, "nonexistent").length, 0);
 });

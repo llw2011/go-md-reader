@@ -28,7 +28,7 @@
         <span class="titlebar-brand">Go Markdown Reader</span>
         <span class="titlebar-sep" aria-hidden="true"></span>
         <span class="titlebar-doc" id="titlebar-doc-name">就绪</span>
-        <span class="titlebar-ver-pill">v2.4.4</span>
+        <span class="titlebar-ver-pill">v2.4.5</span>
       </div>
 
       <div class="titlebar-spacer" aria-hidden="true"></div>
@@ -163,6 +163,10 @@
           <div class="dropdown">
             <button type="button" class="btn" id="settings-btn" aria-haspopup="menu" aria-expanded="false" aria-label="设置" onclick="toggleDropdown('settings-menu', event)" title="设置">⚙️<span class="btn-label"> 设置</span> ▾</button>
             <ul class="dropdown-menu dropdown-right" id="settings-menu" role="menu" aria-label="设置">
+              <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="closeAllDropdowns(); showCommandPalette()">
+                <span class="dropdown-item-name">🔍 命令面板</span>
+                <span class="dropdown-item-path">快速搜索并执行任何操作 (Ctrl+K)</span>
+              </li>
               <li class="dropdown-item" role="menuitem" tabindex="-1" onclick="closeAllDropdowns(); showAddonsModal()">
                 <span class="dropdown-item-name">🧩 扩展功能</span>
                 <span class="dropdown-item-path">按需安装数学公式、流程图</span>
@@ -195,6 +199,9 @@
         <button type="button" class="btn btn-icon" onclick="closeSearch()" aria-label="关闭查找" title="关闭 (Esc)">✕</button>
       </div>
     </header>
+
+    <!-- Multi-Tab Document Bar -->
+    <div class="tab-bar" id="tab-bar" role="tablist" aria-label="已打开文档标签" style="display:none;"></div>
 
     <!-- Reading Progress Bar -->
     <div id="progress-bar"></div>
@@ -251,6 +258,13 @@
 
     <!-- Main Content Area -->
     <main class="content-area" id="content-area">
+      <div class="preview-header" id="preview-header">
+        <span class="preview-header-title">👁️ 实时预览</span>
+        <div class="preview-header-actions">
+          <button type="button" class="btn btn-compact active" id="sync-scroll-btn" aria-pressed="true" onclick="toggleScrollSync()" title="开启 / 关闭左右同步滚动">🔗 同步滚动</button>
+          <button type="button" class="btn btn-compact" onclick="toggleEditor()" title="关闭编辑分屏 (Ctrl+E)">✕ 关闭预览分屏</button>
+        </div>
+      </div>
       <article class="markdown-body" id="content"></article>
       <button id="back-to-top" onclick="scrollToTop()" title="回到顶部">↑</button>
     </main>
@@ -349,7 +363,7 @@
 
       <div class="ota-meta-row">
         <span>点击下方按钮检查是否有新版本。</span>
-        <span class="version-pill">当前版本: <code id="ota-current-ver">v2.4.4</code></span>
+        <span class="version-pill">当前版本: <code id="ota-current-ver">v2.4.5</code></span>
       </div>
 
       <div class="ota-form-stack">
@@ -423,8 +437,18 @@
         <div class="shortcut-row"><span>放大 / 缩小 / 重置字号</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd></span></div>
         <div class="shortcut-row"><span>刷新文档</span><span class="shortcut-keys"><kbd>F5</kbd> / <kbd>Ctrl</kbd>+<kbd>R</kbd></span></div>
         <div class="shortcut-row"><span>快捷键说明</span><span class="shortcut-keys"><kbd>?</kbd></span></div>
+        <div class="shortcut-row"><span>命令面板 / 专注阅读</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>K</kbd> / <kbd>F11</kbd></span></div>
+        <div class="shortcut-row"><span>切换 / 关闭标签页</span><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>W</kbd></span></div>
         <div class="shortcut-row"><span>关闭弹窗 / 搜索栏</span><span class="shortcut-keys"><kbd>Esc</kbd></span></div>
       </div>
+    </div>
+  </div>
+
+  <!-- Command Palette Modal (Ctrl+K) -->
+  <div class="modal-backdrop" id="cmd-modal" role="dialog" aria-modal="true" aria-label="命令面板" onclick="closeCommandPalette(event)">
+    <div class="stats-card cmd-card" onclick="event.stopPropagation()">
+      <input type="text" class="cmd-input" id="cmd-input" placeholder="输入命令或最近文档名... (↑↓ 选择，Enter 执行)" oninput="handleCommandInput(this.value)">
+      <ul class="cmd-list" id="cmd-list" role="listbox"></ul>
     </div>
   </div>
 
@@ -445,6 +469,7 @@
 
   <!-- Accessible Live Status Region & Toast Container -->
   <p role="status" id="a11y-status" class="sr-only"></p>
+  <button type="button" class="zen-exit-btn" id="zen-exit-btn" onclick="toggleZenMode(false)" title="退出专注模式 (F11 或 Esc)">🧘 退出专注 (F11)</button>
   <div id="toast-container"></div>
 
   <!-- Drag & Drop Visual Overlay -->

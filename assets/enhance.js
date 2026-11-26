@@ -100,48 +100,54 @@ function initLightboxWheel() {
 
 // Reading progress bar and active TOC tracking on scroll
 let scrollSaveTimer = null;
+let scrollProgressRaf = 0;
 function initScrollProgress() {
   const container = document.getElementById("content-area");
   const bar = document.getElementById("progress-bar");
 
   container.addEventListener("scroll", () => {
-    const scrollTop = container.scrollTop;
-    const scrollHeight = container.scrollHeight - container.clientHeight;
-    const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
-    bar.style.width = `${progress}%`;
-
-    const headings = document.querySelectorAll(".markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4");
-    let currentId = "";
-    headings.forEach(h => {
-      const top = h.offsetTop - container.offsetTop;
-      if (top <= scrollTop + 60) {
-        currentId = h.id;
-      }
-    });
-    if (currentId) {
-      updateActiveTOC(currentId);
-    }
-
     if (typeof syncScrollRatio === "function") {
       syncScrollRatio("preview");
     }
 
-    const backToTopBtn = document.getElementById("back-to-top");
-    if (backToTopBtn) {
-      backToTopBtn.style.display = scrollTop > 300 ? "flex" : "none";
-    }
+    if (!scrollProgressRaf) {
+      scrollProgressRaf = requestAnimationFrame(() => {
+        scrollProgressRaf = 0;
+        const scrollTop = container.scrollTop;
+        const scrollHeight = container.scrollHeight - container.clientHeight;
+        const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+        bar.style.width = `${progress}%`;
 
-    if (currentDocData && currentDocData.filepath && !currentDocData.isMemory) {
-      const fpath = currentDocData.filepath;
-      const top = Math.round(container.scrollTop);
-      if (!uiPrefsCache.scrollPositions) uiPrefsCache.scrollPositions = {};
-      uiPrefsCache.scrollPositions[fpath] = top;
-      clearTimeout(scrollSaveTimer);
-      scrollSaveTimer = setTimeout(() => {
-        persistUIPrefs({ scrollPath: fpath, scrollTop: top });
-      }, 250);
+        const headings = document.querySelectorAll(".markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4");
+        let currentId = "";
+        headings.forEach(h => {
+          const top = h.offsetTop - container.offsetTop;
+          if (top <= scrollTop + 60) {
+            currentId = h.id;
+          }
+        });
+        if (currentId) {
+          updateActiveTOC(currentId);
+        }
+
+        const backToTopBtn = document.getElementById("back-to-top");
+        if (backToTopBtn) {
+          backToTopBtn.style.display = scrollTop > 300 ? "flex" : "none";
+        }
+
+        if (currentDocData && currentDocData.filepath && !currentDocData.isMemory) {
+          const fpath = currentDocData.filepath;
+          const top = Math.round(scrollTop);
+          if (!uiPrefsCache.scrollPositions) uiPrefsCache.scrollPositions = {};
+          uiPrefsCache.scrollPositions[fpath] = top;
+          clearTimeout(scrollSaveTimer);
+          scrollSaveTimer = setTimeout(() => {
+            persistUIPrefs({ scrollPath: fpath, scrollTop: top });
+          }, 250);
+        }
+      });
     }
-  });
+  }, { passive: true });
 }
 
 function initBackToTop() {
@@ -275,7 +281,7 @@ function initDragDrop() {
 
     const files = e.dataTransfer.files;
     if (files.length === 0) return;
-    if (!(await confirmDiscardEditorChanges())) return;
+    if (typeof stashActiveTabState === "function") stashActiveTabState();
 
     const file = files[0];
     const filePath = file.path || "";

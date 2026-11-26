@@ -149,6 +149,18 @@ func (s *Server) SetCurrentFile(path string) {
 	s.setCurrentFile(path, true)
 }
 
+// ClearCurrentFile clears the active document back to the empty welcome state.
+func (s *Server) ClearCurrentFile() {
+	s.mu.Lock()
+	s.isMemoryOnly = false
+	s.currentFilePath = ""
+	s.memoryContent = nil
+	s.memoryFileName = ""
+	s.docSeq++
+	s.mu.Unlock()
+	s.notifyWatcher()
+}
+
 func (s *Server) setCurrentFile(path string, notify bool) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {

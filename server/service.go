@@ -39,6 +39,11 @@ func (s *Server) HandleRPC(ctx context.Context, method string, rawParams json.Ra
 		return callTyped(rawParams, s.OpenDocument)
 	case "doc.save":
 		return callTyped(rawParams, s.SaveDocument)
+	case "doc.close":
+		return callNoArg(func() (OpenResponse, error) {
+			s.ClearCurrentFile()
+			return OpenResponse{OK: true}, nil
+		})
 	case "doc.exists":
 		return callTyped(rawParams, func(req PathsExistRequest) (PathsExistResponse, error) {
 			n := len(req.Paths)

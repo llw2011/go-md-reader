@@ -490,4 +490,11 @@ func TestGetFileReportsMissingFileKindAndDocExists(t *testing.T) {
 	if !existsResp.Exists[existing] || existsResp.Exists[missing] {
 		t.Fatalf("unexpected doc.exists map: %+v", existsResp.Exists)
 	}
+
+	if _, err := srv.HandleRPC(context.Background(), "doc.close", nil); err != nil {
+		t.Fatalf("doc.close failed: %v", err)
+	}
+	if afterClose := srv.GetFile(); afterClose.HasFile {
+		t.Fatalf("expected HasFile=false after doc.close, got %+v", afterClose)
+	}
 }
